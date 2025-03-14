@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AnyDataset Converter</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 1000px; margin: 0 auto; padding: 20px; }
+        h1 { color: #333; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, select, textarea { width: 100%; padding: 8px; box-sizing: border-box; }
+        .checkbox-group { display: flex; align-items: center; }
+        .checkbox-group input[type="checkbox"] { width: auto; margin-right: 10px; }
+        .checkbox-group label { display: inline; font-weight: normal; }
+        button { background: #4CAF50; color: white; padding: 10px 15px; border: none; cursor: pointer; }
+        .status { margin-top: 20px; padding: 15px; background: #f1f1f1; display: none; }
+        .jobs { margin-top: 20px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { text-align: left; padding: 8px; border-bottom: 1px solid #ddd; }
+        th { background-color: #f2f2f2; }
+        .container { display: flex; }
+        .left-panel { flex: 2; margin-right: 20px; }
+        .right-panel { flex: 1; }
+        .file-option { padding: 10px; margin-bottom: 10px; background: #f9f9f9; border-radius: 5px; cursor: pointer; }
+        .file-option:hover { background: #e9e9e9; }
+        .hidden { display: none; }
+        .tabs { display: flex; margin-bottom: 20px; }
+        .tab { padding: 10px 15px; cursor: pointer; border: 1px solid #ddd; border-bottom: none; }
+        .tab.active { background: #f1f1f1; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .progress-container { margin-top: 15px; width: 100%; background-color: #f1f1f1; border-radius: 5px; }
+        .progress-bar { height: 20px; background-color: #4CAF50; width: 0%; border-radius: 5px; text-align: center; line-height: 20px; color: white; transition: width 0.3s; }
+        .collapsible { background-color: #f1f1f1; color: #333; cursor: pointer; padding: 10px; width: 100%; border: none; text-align: left; outline: none; margin-bottom: 10px; }
+        .collapsible:hover { background-color: #ddd; }
+        .collapsible-content { padding: 0 18px; max-height: 0; overflow: hidden; transition: max-height 0.2s ease-out; }
+        .expand-arrow { float: right; }
+        .advanced-options { margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>AnyDataset Converter</h1>
+    
+    <div class="tabs">
+        <div class="tab active" data-tab="file-upload">Single File</div>
+        <div class="tab" data-tab="article-processing">Articles</div>
+        <div class="tab" data-tab="multi-files">Batch Processing</div>
+    </div>
+    
+    <div class="tab-content active" id="file-upload">
+        <div class="container">
+            <div class="left-panel">
+                <div class="form-group">
+                    <label for="file">Select JSON/JSONL file:</label>
+                    <input type="file" id="file" accept=".json,.jsonl">
+                </div>
+                
+                <div class="form-group">
+                    <label for="dataset_name">Dataset name (output folder):</label>
+                    <input type="text" id="dataset_name" placeholder="e.g. medical-dataset">
+                </div>
+                
+                <div class="form-group">
+                    <label for="conversion_type">Conversion type:</label>
+                    <select id="conversion_type">
+                        <option value="standard">Standard conversion</option>
+                        <option value="dictionary">Dictionary/glossary</option>
+                        <option value="translate">Translation (EN to other)</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="model_provider">Model provider:</label>
+                    <select id="model_provider" onchange="updateModelsList()">
+                        <option value="anthropic">Claude (Anthropic)</option>
+                        <option value="openai">OpenAI</option>
+                        <option value="deepseek">DeepSeek</option>
+                        <option value="qwen">Qwen</option>
+                        <option value="mistral">Mistral AI</option>
+                        <option value="lmstudio">LM Studio (local)</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="model_name">Model:</label>
+                    <select id="model_name">
+                        <option value="claude-3-5-sonnet-20240620">claude-3-5-sonnet-20240620</option>
+                        <option value="claude-3-opus-20240229">claude-3-opus-20240229</option>
+                        <option value="claude-3-sonnet-20240229">claude-3-sonnet-20240229</option>
+                        <option value="claude-3-haiku-20240307">claude-3-haiku-20240307</option>
+                    </select>
+                </div>
+                
+                <div class="form-group api-key-container">
+                    <label for="api_key">API key:</label>
+                    <input type="password" id="api_key" placeholder="Enter API key">
+                </div>
+                
+                <div class="form-group">
+                    <label for="keywords">Keywords (comma-separated):</label>
+                    <input type="text" id="keywords" placeholder="e.g. medicine, disease, treatment or AUTO for automatic generation">
+                </div>
+                
+                <button class="collapsible">Advanced options <span class="expand-arrow">▼</span></button>
+                <div class="collapsible-content">
+                    <div class="form-group checkbox-group">
+                        <input type="checkbox" id="add_reasoning" checked>
+                        <label for="add_reasoning">Add reasoning traces</label>
+                    </div>
+                    
+                    <div class="form-group checkbox-group">
+                        <input type="checkbox" id="anonymize">
+                        <label for="anonymize">Anonymize sensitive data</label>
+                    </div>
+                    
+                    <div class="form-group checkbox-group">
+                        <input type="checkbox" id="use_web_search">
+                        <label for="use_web_search">Use web search</label>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="max_workers">Number of threads:</label>
+                        <input type="number" id="max_workers" value="4" min="1" max="20">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="train_split">Train/valid ratio (0.8 = 80% train):</label>
+                        <input type="number" id="train_split" value="0.8" min="0.5" max="0.95" step="0.05">
+                    </div>
+                    
+                    <div class="form-group lmstudio-settings" style="display: none;">
+                        <label for="base_url">LM Studio URL:</label>
+                        <input type="text" id="base_url" value="http://localhost:1234" placeholder="http://localhost:1234">
+                    </div>
+                </div>
+                
+                <button id="submit">Convert Dataset</button>
+                
+                <div id="progress-container" class="progress-container" style="display: none;">
+                    <div id="progress-bar" class="progress-bar">0%</div>
+                </div>
+            </div>
+            
+            <div class="right-panel">
+                <h3>Recently used files</h3>
+                <div id="recent_files">
+                    <!-- Dynamically added recent files -->
+                </div>
+            </div>
+        </div>
+        
+        <div id="status" class="status"></div>
+    </div>
+    
+    <div class="tab-content" id="article-processing">
+        <div class="form-group">
+            <label for="article_dir">Articles directory:</label>
+            <input type="text" id="article_dir" placeholder="e.g. /path/to/articles">
+        </div>
+        
+        <div class="form-group">
+            <label for="article_dataset_name">Dataset name (output folder):</label>
+            <input type="text" id="article_dataset_name" placeholder="e.g. medical-articles-qa">
+        </div>
+        
+        <div class="form-group">
+            <label for="article_model_provider">Model provider:</label>
+            <select id="article_model_provider" onchange="updateArticleModelsList()">
+                <option value="anthropic">Claude (Anthropic)</option>
+                <option value="openai">OpenAI</option>
+                <option value="deepseek">DeepSeek</option>
+                <option value="qwen">Qwen</option>
+                <option value="mistral">Mistral AI</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="article_model_name">Model:</label>
+            <select id="article_model_name">
+                <option value="claude-3-5-sonnet-20240620">claude-3-5-sonnet-20240620</option>
+                <option value="claude-3-opus-20240229">claude-3-opus-20240229</option>
+                <option value="claude-3-sonnet-20240229">claude-3-sonnet-20240229</option>
+                <option value="claude-3-haiku-20240307">claude-3-haiku-20240307</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="article_api_key">API key:</label>
+            <input type="password" id="article_api_key" placeholder="Enter API key">
+        </div>
+        
+        <div class="form-group">
+            <label for="article_keywords">Keywords for all articles (comma-separated):</label>
+            <input type="text" id="article_keywords" placeholder="e.g. medicine, disease, treatment or AUTO for automatic generation">
+        </div>
+        
+        <button class="collapsible">Advanced options <span class="expand-arrow">▼</span></button>
+        <div class="collapsible-content">
+            <div class="form-group checkbox-group">
+                <input type="checkbox" id="article_add_reasoning" checked>
+                <label for="article_add_reasoning">Add reasoning traces</label>
+            </div>
+            
+            <div class="form-group checkbox-group">
+                <input type="checkbox" id="article_use_web_search">
+                <label for="article_use_web_search">Use web search</label>
+            </div>
+            
+            <div class="form-group checkbox-group">
+                <input type="checkbox" id="article_anonymize">
+                <label for="article_anonymize">Anonymize sensitive data</label>
+            </div>
+            
+            <div class="form-group">
+                <label for="article_max_workers">Number of threads:</label>
+                <input type="number" id="article_max_workers" value="4" min="1" max="20">
+            </div>
+            
+            <div class="form-group">
+                <label for="article_train_split">Train/valid ratio (0.8 = 80% train):</label>
+                <input type="number" id="article_train_split" value="0.8" min="0.5" max="0.95" step="0.05">
+            </div>
+        </div>
+        
+        <button id="process_articles">Process Articles</button>
+        
+        <div id="article_progress-container" class="progress-container" style="display: none;">
+            <div id="article_progress-bar" class="progress-bar">0%</div>
+        </div>
+        
+        <div id="article_status" class="status"></div>
+    </div>
+    
+    <div class="tab-content" id="multi-files">
+        <div class="form-group">
+            <label for="multi_conversion_type">Conversion type for all files:</label>
+            <select id="multi_conversion_type">
+                <option value="standard">Standard conversion</option>
+                <option value="dictionary">Dictionary/glossary</option>
+                <option value="translate">Translation (EN to other)</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="source_dir">Source directory:</label>
+            <input type="text" id="source_dir" placeholder="e.g. /path/to/json/files">
+        </div>
+        
+        <div class="form-group">
+            <label for="multi_model_provider">Model provider:</label>
+            <select id="multi_model_provider" onchange="updateMultiModelsList()">
+                <option value="anthropic">Claude (Anthropic)</option>
+                <option value="openai">OpenAI</option>
+                <option value="deepseek">DeepSeek</option>
+                <option value="qwen">Qwen</option>
+                <option value="mistral">Mistral AI</option>
+                <option value="lmstudio">LM Studio (local)</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="multi_model_name">Model:</label>
+            <select id="multi_model_name">
+                <option value="claude-3-5-sonnet-20240620">claude-3-5-sonnet-20240620</option>
+                <option value="claude-3-opus-20240229">claude-3-opus-20240229</option>
+                <option value="claude-3-sonnet-20240229">claude-3-sonnet-20240229</option>
+                <option value="claude-3-haiku-20240307">claude-3-haiku-20240307</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="multi_api_key">API key:</label>
+            <input type="password" id="multi_api_key" placeholder="Enter API key">
+        </div>
+        
+        <div class="form-group">
+            <label for="multi_keywords">Keywords for all files (comma-separated):</label>
+            <input type="text" id="multi_keywords" placeholder="e.g. medicine, disease, treatment or AUTO for automatic generation">
+        </div>
+        
+        <button class="collapsible">Advanced options <span class="expand-arrow">▼</span></button>
+        <div class="collapsible-content">
+            <div class="form-group checkbox-group">
+                <input type="checkbox" id="multi_add_reasoning" checked>
+                <label for="multi_add_reasoning">Add reasoning traces</label>
+            </div>
+            
+            <div class="form-group checkbox-group">
+                <input type="checkbox" id="multi_anonymize">
+                <label for="multi_anonymize">Anonymize sensitive data</label>
+            </div>
+            
+            <div class="form-group checkbox-group">
+                <input type="checkbox" id="multi_use_web_search">
+                <label for="multi_use_web_search">Use web search</label>
+            </div>
+            
+            <div class="form-group">
+                <label for="multi_max_workers">Number of threads:</label>
+                <input type="number" id="multi_max_workers" value="4" min="1" max="20">
+            </div>
+            
+            <div class="form-group">
+                <label for="multi_train_split">Train/valid ratio (0.8 = 80% train):</label>
+                <input type="number" id="multi_train_split" value="0.8" min="0.5" max="0.95" step="0.05">
+            </div>
+            
+            <div class="form-group multi-lmstudio-settings" style="display: none;">
+                <label for="multi_base_url">LM Studio URL:</label>
+                <input type="text" id="multi_base_url" value="http://localhost:1234" placeholder="http://localhost:1234">
+            </div>
+        </div>
+        
+        <button id="convert_multiple">Convert Multiple Files</button>
+        
+        <div id="multi_progress_summary" class="status" style="display: none;">
+            Converting...
+        </div>
+        
+        <div id="multi_status" class="status"></div>
+    </div>
+    
+    <div class="jobs">
+        <h2>Completed Datasets</h2>
+        <table id="jobs_table">
+            <tr>
+                <th>Name</th>
+                <th>Train</th>
+                <th>Valid</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+            <!-- Dynamically added rows -->
+        </table>
+    </div>
+    
+    <script>
+        // Generate unique client ID for WebSocket
+        const CLIENT_ID = 'client_' + Math.random().toString(36).substring(2, 15);
+        let socket;
+        
+        // WebSocket connection
+        function connectWebSocket() {
+            socket = new WebSocket(`ws://${window.location.host}/ws/${CLIENT_ID}`);
+            
+            socket.onopen = function(e) {
+                console.log("WebSocket connection established");
+                // Heartbeat to keep connection alive
+                setInterval(() => {
+                    if (socket.readyState === WebSocket.OPEN) {
+                        socket.send("ping");
+                    }
+                }, 30000);
+            };
+            
+            socket.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.job_id) {
+                        updateProgressBar(data.job_id, data.percentage);
+                        if (data.completed) {
+                            loadJobs();
+                        }
+                    }
+                } catch (e) {
+                    console.error("Error parsing WebSocket message:", e);
+                }
+            };
+            
+            socket.onclose = function(event) {
+                console.log("WebSocket connection closed. Reconnecting...");
+                setTimeout(connectWebSocket, 2000);
+            };
+            
+            socket.onerror = function(error) {
+                console.error("WebSocket error:", error);
+            };
+        }
+        
+        // Update progress bar
+        function updateProgressBar(jobId, percentage) {
+            let progressBarId, progressContainerId;
+            
+            if (jobId.startsWith('article_')) {
+                progressBarId = 'article_progress-bar';
+                progressContainerId = 'article_progress-container';
+            } else if (jobId.startsWith('multi_')) {
+                // For batch processing, just update the summary text
+                const multiProgressSummary = document.getElementById('multi_progress_summary');
+                multiProgressSummary.style.display = 'block';
+                multiProgressSummary.innerHTML = `Converting: ${percentage}% complete`;
+                return;
+            } else {
+                progressBarId = 'progress-bar';
+                progressContainerId = 'progress-container';
+            }
+            
+            const progressBar = document.getElementById(progressBarId);
+            const progressContainer = document.getElementById(progressContainerId);
+            
+            if (progressBar && progressContainer) {
+                progressContainer.style.display = 'block';
+                progressBar.style.width = percentage + '%';
+                progressBar.innerHTML = percentage + '%';
+                
+                // Change color when complete
+                if (percentage >= 100) {
+                    progressBar.style.backgroundColor = '#2196F3';
+                }
+            }
+        }
+        
+        // Tab handling
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                // Remove active class from all tabs
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                // Add active class to clicked tab
+                this.classList.add('active');
+                
+                // Hide all tab contents
+                document.querySelectorAll('.tab-content').forEach(content => {
+                    content.classList.remove('active');
+                });
+                
+                // Show content for selected tab
+                const tabId = this.getAttribute('data-tab');
+                document.getElementById(tabId).classList.add('active');
+            });
+        });
+        
+        // Collapsible sections
+        document.querySelectorAll('.collapsible').forEach(collapsible => {
+            collapsible.addEventListener('click', function() {
+                this.classList.toggle('active');
+                const content = this.nextElementSibling;
+                const arrow = this.querySelector('.expand-arrow');
+                
+                if (content.style.maxHeight) {
+                    content.style.maxHeight = null;
+                    arrow.textContent = '▼';
+                } else {
+                    content.style.maxHeight = content.scrollHeight + "px";
+                    arrow.textContent = '▲';
+                }
+            });
+        });
+        
+        // Update model list based on provider
+        function updateModelsList() {
+            const provider = document.getElementById('model_provider').value;
+            const modelSelect = document.getElementById('model_name');
+            const lmStudioSettings = document.querySelector('.lmstudio-settings');
+            
+            // Show/hide LM Studio settings
+            if (provider === 'lmstudio') {
+                lmStudioSettings.style.display = 'block';
+            } else {
+                lmStudioSettings.style.display = 'none';
+            }
+            
+            // Update model options
+            updateModelOptions(provider, modelSelect);
+        }
+        
+        function updateArticleModelsList() {
+            const provider = document.getElementById('article_model_provider').value;
+            const modelSelect = document.getElementById('article_model_name');
+            updateModelOptions(provider, modelSelect);
+        }
+        
+        function updateMultiModelsList() {
+            const provider = document.getElementById('multi_model_provider').value;
+            const modelSelect = document.getElementById('multi_model_name');
+            const lmStudioSettings = document.querySelector('.multi-lmstudio-settings');
+            
+            // Show/hide LM Studio settings
+            if (provider === 'lmstudio') {
+                lmStudioSettings.style.display = 'block';
+            } else {
+                lmStudioSettings.style.display = 'none';
+            }
+            
+            // Update model options
+            updateModelOptions(provider, modelSelect);
+        }
+        
+        function updateModelOptions(provider, selectElement) {
+            // Clear current options
+            selectElement.innerHTML = '';
+            
+            // Get models for selected provider
+            const availableModels = {
+                "anthropic": [
+                    "claude-3-5-sonnet-20240620",
+                    "claude-3-opus-20240229",
+                    "claude-3-sonnet-20240229",
+                    "claude-3-haiku-20240307"
+                ],
+                "openai": [
+                    "gpt-4o",
+                    "gpt-4-turbo",
+                    "gpt-4",
+                    "gpt-3.5-turbo"
+                ],
+                "deepseek": [
+                    "deepseek-reasoner",
+                    "deepseek-coder",
+                    "deepseek-chat"
+                ],
+                "qwen": [
+                    "qwen-max",
+                    "qwen-max-0428",
+                    "qwen-plus"
+                ],
+                "mistral": [
+                    "mistral-large-latest",
+                    "mistral-medium-latest",
+                    "mistral-small-latest"
+                ],
+                "lmstudio": [
+                    "local-model"
+                ]
+            };
+            
+            // Add model options
+            const models = availableModels[provider] || [];
+            models.forEach(model => {
+                const option = document.createElement('option');
+                option.value = model;
+                option.textContent = model;
+                selectElement.appendChild(option);
+            });
+        }
+        
+        // Parse keywords
+        function parseKeywords(inputValue) {
+            if (!inputValue) return null;
+            if (inputValue.trim().toUpperCase() === 'AUTO') {
+                return ['AUTO'];
+            }
+            return inputValue.split(',').map(k => k.trim()).filter(k => k);
+        }
+        
+        // Single file conversion form submission
+        document.getElementById('submit').addEventListener('click', async function() {
+            const fileInput = document.getElementById('file');
+            const datasetName = document.getElementById('dataset_name').value;
+            const conversionType = document.getElementById('conversion_type').value;
+            const modelProvider = document.getElementById('model_provider').value;
+            const modelName = document.getElementById('model_name').value;
+            const apiKey = document.getElementById('api_key').value;
+            const addReasoning = document.getElementById('add_reasoning').checked;
+            const anonymize = document.getElementById('anonymize').checked;
+            const useWebSearch = document.getElementById('use_web_search').checked;
+            const keywords = parseKeywords(document.getElementById('keywords').value);
+            const maxWorkers = document.getElementById('max_workers').value;
+            const trainSplit = document.getElementById('train_split').value;
+            const baseUrl = document.getElementById('base_url').value;
+            
+            if (!fileInput.files[0]) {
+                alert('Please select a file to convert!');
+                return;
+            }
+            
+            if (!datasetName) {
+                alert('Please enter a dataset name!');
+                return;
+            }
+            
+            if (modelProvider !== 'lmstudio' && !apiKey && addReasoning) {
+                alert('Please enter an API key!');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('dataset_name', datasetName);
+            formData.append('conversion_type', conversionType);
+            formData.append('model_provider', modelProvider);
+            formData.append('model_name', modelName);
+            formData.append('add_reasoning', addReasoning);
+            formData.append('anonymize', anonymize);
+            formData.append('use_web_search', useWebSearch);
+            if (keywords) {
+                formData.append('keywords', JSON.stringify(keywords));
+            }
+            formData.append('api_key', apiKey);
+            formData.append('max_workers', maxWorkers);
+            formData.append('train_split', trainSplit);
+            if (modelProvider === 'lmstudio') {
+                formData.append('base_url', baseUrl);
+            }
+            formData.append('client_id', CLIENT_ID);
+            
+            const statusDiv = document.getElementById('status');
+            statusDiv.style.display = 'block';
+            statusDiv.innerHTML = 'Conversion in progress, please wait...';
+            
+            // Show progress bar
+            const progressContainer = document.getElementById('progress-container');
+            const progressBar = document.getElementById('progress-bar');
+            progressContainer.style.display = 'block';
+            progressBar.style.width = '0%';
+            progressBar.innerHTML = '0%';
+            
+            try {
+                const response = await fetch('/convert/', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    statusDiv.innerHTML = `
+                        Conversion started!<br>
+                        Job ID: ${result.job_id}<br>
+                        Output directory: ${result.output_dir}<br>
+                        Status will update automatically.
+                    `;
+                    
+                    // Add file to recently used
+                    addToRecentFiles(fileInput.files[0].name);
+                } else {
+                    statusDiv.innerHTML = `Error: ${result.detail || result.error || 'Unknown error'}`;
+                    // Hide progress bar on error
+                    progressContainer.style.display = 'none';
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `Error: ${error.message}`;
+                // Hide progress bar on error
+                progressContainer.style.display = 'none';
+            }
+        });
+        
+        // Articles processing form submission
+        document.getElementById('process_articles').addEventListener('click', async function() {
+            const articleDir = document.getElementById('article_dir').value;
+            const datasetName = document.getElementById('article_dataset_name').value;
+            const modelProvider = document.getElementById('article_model_provider').value;
+            const modelName = document.getElementById('article_model_name').value;
+            const apiKey = document.getElementById('article_api_key').value;
+            const addReasoning = document.getElementById('article_add_reasoning').checked;
+            const anonymize = document.getElementById('article_anonymize').checked;
+            const useWebSearch = document.getElementById('article_use_web_search').checked;
+            const keywords = parseKeywords(document.getElementById('article_keywords').value);
+            const maxWorkers = document.getElementById('article_max_workers').value;
+            const trainSplit = document.getElementById('article_train_split').value;
+            
+            if (!articleDir) {
+                alert('Please enter the articles directory!');
+                return;
+            }
+            
+            if (!datasetName) {
+                alert('Please enter a dataset name!');
+                return;
+            }
+            
+            if (!apiKey) {
+                alert('Please enter an API key!');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('article_dir', articleDir);
+            formData.append('dataset_name', datasetName);
+            formData.append('model_provider', modelProvider);
+            formData.append('model_name', modelName);
+            formData.append('add_reasoning', addReasoning);
+            formData.append('anonymize', anonymize);
+            formData.append('use_web_search', useWebSearch);
+            if (keywords) {
+                formData.append('keywords', JSON.stringify(keywords));
+            }
+            formData.append('api_key', apiKey);
+            formData.append('max_workers', maxWorkers);
+            formData.append('train_split', trainSplit);
+            formData.append('client_id', CLIENT_ID);
+            
+            const statusDiv = document.getElementById('article_status');
+            statusDiv.style.display = 'block';
+            statusDiv.innerHTML = 'Processing articles, please wait...';
+            
+            // Show progress bar
+            const progressContainer = document.getElementById('article_progress-container');
+            const progressBar = document.getElementById('article_progress-bar');
+            progressContainer.style.display = 'block';
+            progressBar.style.width = '0%';
+            progressBar.innerHTML = '0%';
+            
+            try {
+                const response = await fetch('/process-articles/', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    statusDiv.innerHTML = `
+                        Processing started!<br>
+                        Job ID: ${result.job_id}<br>
+                        Output directory: ${result.output_dir}<br>
+                        Status will update automatically.
+                    `;
+                } else {
+                    statusDiv.innerHTML = `Error: ${result.detail || result.error || 'Unknown error'}`;
+                    // Hide progress bar on error
+                    progressContainer.style.display = 'none';
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `Error: ${error.message}`;
+                // Hide progress bar on error
+                progressContainer.style.display = 'none';
+            }
+        });
+        
+        // Batch processing form submission
+        document.getElementById('convert_multiple').addEventListener('click', async function() {
+            const sourceDir = document.getElementById('source_dir').value;
+            const conversionType = document.getElementById('multi_conversion_type').value;
+            const modelProvider = document.getElementById('multi_model_provider').value;
+            const modelName = document.getElementById('multi_model_name').value;
+            const apiKey = document.getElementById('multi_api_key').value;
+            const addReasoning = document.getElementById('multi_add_reasoning').checked;
+            const anonymize = document.getElementById('multi_anonymize').checked;
+            const useWebSearch = document.getElementById('multi_use_web_search').checked;
+            const keywords = parseKeywords(document.getElementById('multi_keywords').value);
+            const maxWorkers = document.getElementById('multi_max_workers').value;
+            const trainSplit = document.getElementById('multi_train_split').value;
+            const baseUrl = document.getElementById('multi_base_url').value;
+            
+            if (!sourceDir) {
+                alert('Please enter the source directory!');
+                return;
+            }
+            
+            if (modelProvider !== 'lmstudio' && !apiKey && addReasoning) {
+                alert('Please enter an API key!');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('source_dir', sourceDir);
+            formData.append('conversion_type', conversionType);
+            formData.append('model_provider', modelProvider);
+            formData.append('model_name', modelName);
+            formData.append('add_reasoning', addReasoning);
+            formData.append('anonymize', anonymize);
+            formData.append('use_web_search', useWebSearch);
+            if (keywords) {
+                formData.append('keywords', JSON.stringify(keywords));
+            }
+            formData.append('api_key', apiKey);
+            formData.append('max_workers', maxWorkers);
+            formData.append('train_split', trainSplit);
+            if (modelProvider === 'lmstudio') {
+                formData.append('base_url', baseUrl);
+            }
+            formData.append('client_id', CLIENT_ID);
+            
+            const statusDiv = document.getElementById('multi_status');
+            const progressSummary = document.getElementById('multi_progress_summary');
+            statusDiv.style.display = 'block';
+            statusDiv.innerHTML = 'Starting batch conversion, please wait...';
+            progressSummary.style.display = 'block';
+            progressSummary.innerHTML = 'Preparing files...';
+            
+            try {
+                const response = await fetch('/convert-multiple/', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    statusDiv.innerHTML = `
+                        Conversion started!<br>
+                        Number of files: ${result.file_count}<br>
+                        Status will update automatically.
+                    `;
+                } else {
+                    statusDiv.innerHTML = `Error: ${result.detail || result.error || 'Unknown error'}`;
+                    progressSummary.style.display = 'none';
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `Error: ${error.message}`;
+                progressSummary.style.display = 'none';
+            }
+        });
+        
+        // Recently used files management
+        function addToRecentFiles(fileName) {
+            let recentFiles = JSON.parse(localStorage.getItem('recentFiles') || '[]');
+            
+            // Add new file to top of list
+            recentFiles.unshift(fileName);
+            
+            // Remove duplicates
+            recentFiles = [...new Set(recentFiles)];
+            
+            // Limit to 5 files
+            recentFiles = recentFiles.slice(0, 5);
+            
+            // Save to localStorage
+            localStorage.setItem('recentFiles', JSON.stringify(recentFiles));
+            
+            // Refresh display
+            displayRecentFiles();
+        }
+        
+        // Display recently used files
+        function displayRecentFiles() {
+            const recentFiles = JSON.parse(localStorage.getItem('recentFiles') || '[]');
+            const recentFilesDiv = document.getElementById('recent_files');
+            
+            recentFilesDiv.innerHTML = '';
+            
+            if (recentFiles.length === 0) {
+                recentFilesDiv.innerHTML = '<p>No recently used files.</p>';
+                return;
+            }
+            
+            recentFiles.forEach(file => {
+                const fileDiv = document.createElement('div');
+                fileDiv.className = 'file-option';
+                fileDiv.textContent = file;
+                fileDiv.addEventListener('click', function() {
+                    document.getElementById('dataset_name').value = file.replace('.json', '').replace('.jsonl', '');
+                });
+                recentFilesDiv.appendChild(fileDiv);
+            });
+        }
+        
+        // Load jobs list
+        async function loadJobs() {
+            try {
+                const response = await fetch('/jobs');
+                const jobs = await response.json();
+                
+                const tableBody = document.getElementById('jobs_table');
+                // Preserve header
+                tableBody.innerHTML = `
+                    <tr>
+                        <th>Name</th>
+                        <th>Train</th>
+                        <th>Valid</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                `;
+                
+                jobs.forEach(job => {
+                    const row = document.createElement('tr');
+                    const statusBadge = job.completed 
+                        ? '<span style="background-color: #4CAF50; color: white; padding: 3px 8px; border-radius: 4px;">Complete</span>' 
+                        : '<span style="background-color: #2196F3; color: white; padding: 3px 8px; border-radius: 4px;">In Progress</span>';
+                        
+                    row.innerHTML = `
+                        <td>${job.name}</td>
+                        <td>${job.train_count}</td>
+                        <td>${job.valid_count}</td>
+                        <td>${statusBadge}</td>
+                        <td>
+                            <a href="/download/${job.name}/train">Train</a> |
+                            <a href="/download/${job.name}/valid">Valid</a>
+                        </td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+            } catch (error) {
+                console.error('Error loading jobs:', error);
+            }
+        }
+        
+        // Initialization
+        document.addEventListener('DOMContentLoaded', function() {
+            // Establish WebSocket connection
+            connectWebSocket();
+            
+            // Load jobs list and recently used files
+            loadJobs();
+            displayRecentFiles();
+            
+            // Initialize model lists
+            updateModelsList();
+            updateArticleModelsList();
+            updateMultiModelsList();
+            
+            // Auto-refresh jobs list every 30 seconds
+            setInterval(loadJobs, 30000);
+        });
+    </script>
+</body>
+</html>
