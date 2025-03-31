@@ -27,8 +27,16 @@ from utils import (
 )
 
 # Load environment variables
-load_dotenv()
+# Use the absolute path to ensure .env is found regardless of working directory
+dotenv_path = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) / '.env'
+load_dotenv(dotenv_path=dotenv_path)
 logger = setup_logging()
+
+# Debug: log which API keys are available from environment
+logger.info(f"Loaded environment from: {dotenv_path}")
+logger.info(f"ANTHROPIC_API_KEY set: {'Yes' if os.getenv('ANTHROPIC_API_KEY') else 'No'}")
+logger.info(f"OPENAI_API_KEY set: {'Yes' if os.getenv('OPENAI_API_KEY') else 'No'}")
+logger.info(f"MISTRAL_API_KEY set: {'Yes' if os.getenv('MISTRAL_API_KEY') else 'No'}")
 
 # Create the FastAPI app
 app = FastAPI(title="AnyDataset Converter")
@@ -83,9 +91,11 @@ app.add_middleware(
 )
 
 # Set up directories
-UPLOAD_DIR = Path("./uploads")
-OUTPUT_DIR = Path("./ready")
-PROGRESS_DIR = Path("./progress")
+# Get the app directory path
+APP_DIR = Path(os.path.dirname(os.path.abspath(__file__)))
+UPLOAD_DIR = APP_DIR / "uploads"
+OUTPUT_DIR = APP_DIR / "ready"
+PROGRESS_DIR = APP_DIR / "progress"
 for dir_path in [UPLOAD_DIR, OUTPUT_DIR, PROGRESS_DIR]:
     dir_path.mkdir(exist_ok=True)
 
@@ -144,19 +154,19 @@ AVAILABLE_MODELS = {
 # Define script mappings
 SCRIPTS = {
     "standard": {
-        "path": "./scripts/standard.py",
+        "path": str(APP_DIR / "scripts" / "standard.py"),
         "description": "Standard instruction-output datasets"
     },
     "dictionary": {
-        "path": "./scripts/dictionary.py",
+        "path": str(APP_DIR / "scripts" / "dictionary.py"),
         "description": "Dictionary/glossary datasets"
     },
     "translate": {
-        "path": "./scripts/translate.py",
+        "path": str(APP_DIR / "scripts" / "translate.py"),
         "description": "Translation and conversion of foreign datasets"
     },
     "articles": {
-        "path": "./scripts/articles.py",
+        "path": str(APP_DIR / "scripts" / "articles.py"),
         "description": "Article processing for Q&A generation"
     }
 }
@@ -354,7 +364,8 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
 # Root endpoint - returns the HTML UI
 @app.get("/", response_class=HTMLResponse)
 async def get_index():
-    with open("templates/index.html", "r") as f:
+    template_path = APP_DIR / "templates" / "index.html"
+    with open(template_path, "r") as f:
         html_content = f.read()
     return html_content
 
@@ -737,7 +748,7 @@ if __name__ == "__main__":
     port = int(os.getenv("PORT", "8000"))
     
     # Create template directory if it doesn't exist
-    template_dir = Path("./templates")
+    template_dir = APP_DIR / "templates"
     template_dir.mkdir(exist_ok=True)
     
     # Create a minimal index.html if it doesn't exist
