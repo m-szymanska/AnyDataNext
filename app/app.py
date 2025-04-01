@@ -157,14 +157,14 @@ SCRIPTS = {
         "path": str(APP_DIR / "scripts" / "standard.py"),
         "description": "Standard instruction-output datasets"
     },
-    "dictionary": {
-        "path": str(APP_DIR / "scripts" / "dictionary.py"),
-        "description": "Dictionary/glossary datasets"
-    },
-    "translate": {
-        "path": str(APP_DIR / "scripts" / "translate.py"),
-        "description": "Translation and conversion of foreign datasets"
-    },
+    # "dictionary": {
+    #     "path": str(APP_DIR / "scripts" / "dictionary.py"),
+    #     "description": "Dictionary/glossary datasets"
+    # },
+    # "translate": {
+    #     "path": str(APP_DIR / "scripts" / "translate.py"),
+    #     "description": "Translation and conversion of foreign datasets"
+    # },
     "articles": {
         "path": str(APP_DIR / "scripts" / "articles.py"),
         "description": "Article processing for Q&A generation"
@@ -267,33 +267,33 @@ async def convert_dataset(
                 use_web_search=use_web_search,
                 progress_callback=progress_callback
             )
-        elif conversion_type == "dictionary":
-            result = module.process_dictionary(
-                input_path=input_path,
-                output_dir=output_dir,
-                add_reasoning_flag=add_reasoning,
-                api_key=api_key,
-                model_provider=model_provider,
-                model_name=model_name,
-                max_workers=max_workers,
-                train_split=train_split,
-                keywords=keywords,
-                progress_callback=progress_callback
-            )
-        elif conversion_type == "translate":
-            result = module.process_dataset(
-                input_path=input_path,
-                output_dir=output_dir,
-                translate_model=model_provider,
-                reasoning_model=model_provider,
-                add_reasoning_flag=add_reasoning,
-                translate_api_key=api_key,
-                reasoning_api_key=api_key,
-                max_workers=max_workers,
-                train_split=train_split,
-                keywords=keywords,
-                progress_callback=progress_callback
-            )
+        # elif conversion_type == "dictionary":
+        #     result = module.process_dictionary(
+        #         input_path=input_path,
+        #         output_dir=output_dir,
+        #         add_reasoning_flag=add_reasoning,
+        #         api_key=api_key,
+        #         model_provider=model_provider,
+        #         model_name=model_name,
+        #         max_workers=max_workers,
+        #         train_split=train_split,
+        #         keywords=keywords,
+        #         progress_callback=progress_callback
+        #     )
+        # elif conversion_type == "translate":
+        #     result = module.process_dataset(
+        #         input_path=input_path,
+        #         output_dir=output_dir,
+        #         translate_model=model_provider,
+        #         reasoning_model=model_provider,
+        #         add_reasoning_flag=add_reasoning,
+        #         translate_api_key=api_key,
+        #         reasoning_api_key=api_key,
+        #         max_workers=max_workers,
+        #         train_split=train_split,
+        #         keywords=keywords,
+        #         progress_callback=progress_callback
+        #     )
         elif conversion_type == "articles":
             result = module.process_articles(
                 input_dir=input_path,
@@ -381,7 +381,7 @@ async def convert_dataset_endpoint(
     base_url: Optional[str] = Form("http://localhost:1234"),
     client_id: Optional[str] = Form(None)
 ):
-    """Endpoint for converting a single file (txt/json/jsonl)."""
+    """Endpoint for converting a single file (supports various formats: TXT, MD, CSV, TSV, JSON, JSONL, YAML, PDF, DOCX)."""
     logger.info(f"/convert/ called for dataset: {dataset_name}, conversion_type: {conversion_type}")
     try:
         # 1) Zapisujemy plik do tymczasowego katalogu
@@ -534,8 +534,8 @@ async def convert_multiple_endpoint(
     client_id: Optional[str] = Form(None)
 ):
     """
-    Endpoint for batch processing multiple files (.txt/.json/.jsonl).
-    Zamiast tylko .json/.jsonl – rozszerzamy też o .txt.
+    Endpoint for batch processing multiple files.
+    Supports various formats: TXT, MD, CSV, TSV, JSON, JSONL, YAML, PDF, DOCX.
     Parsujemy każdy z nich i zapisujemy do pliku .json,
     który przekazujemy do convert_dataset.
     """
@@ -546,15 +546,15 @@ async def convert_multiple_endpoint(
             logger.error(err_msg)
             return JSONResponse({"error": err_msg}, status_code=404)
         
-        # Find all .json, .jsonl, .txt
+        # Find all supported file formats
         files = []
         for fname in os.listdir(source_dir):
             ext = os.path.splitext(fname)[1].lower()
-            if ext in (".json", ".jsonl", ".txt"):
+            if ext in (".json", ".jsonl", ".txt", ".md", ".csv", ".tsv", ".yaml", ".yml", ".pdf", ".docx"):
                 files.append(os.path.join(source_dir, fname))
         
         if not files:
-            err_msg = "No JSON/JSONL/TXT files found in the directory"
+            err_msg = "No supported files found in the directory. Supported formats: JSON, JSONL, TXT, MD, CSV, TSV, YAML, PDF, DOCX"
             logger.error(err_msg)
             return JSONResponse({"error": err_msg}, status_code=404)
         
