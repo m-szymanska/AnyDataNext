@@ -25,7 +25,8 @@ def setup_logging(log_level=None):
         numeric_level = logging.INFO
     
     # Create logs directory if it doesn't exist
-    logs_dir = Path("./logs")
+    app_dir = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    logs_dir = app_dir / "logs"
     logs_dir.mkdir(exist_ok=True)
     
     # Configure logging
