@@ -31,7 +31,25 @@ def save_progress(job_id, total, processed, success=True, error=None):
     """
     progress_file = PROGRESS_DIR / f"{job_id}_progress.json"
     
-    percentage = round((processed / total) * 100 if total > 0 else 0, 2)
+    # Calculate percentage with some minimum threshold to show movement
+    if processed > 0 and processed < total:
+        # Ensure we show at least 1% progress and never more than 99% until complete
+        percentage = max(1, min(99, round((processed / total) * 100 if total > 0 else 0, 1)))
+    else:
+        percentage = 100 if processed >= total else 0
+    
+    # Update existing file if it exists to maintain history
+    existing_data = {}
+    if progress_file.exists():
+        try:
+            with open(progress_file, 'r', encoding='utf-8') as f:
+                existing_data = json.load(f)
+                # Only increase percentage, never decrease (prevents jumps backward)
+                if 'percentage' in existing_data and existing_data['percentage'] > percentage and processed < total:
+                    percentage = existing_data['percentage']
+        except Exception:
+            pass
+    
     progress_data = {
         "job_id": job_id,
         "total": total,
