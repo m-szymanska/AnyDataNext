@@ -10,7 +10,8 @@ from .logging import setup_logging
 logger = setup_logging()
 
 # Ensure progress directory exists
-PROGRESS_DIR = Path("./progress")
+APP_DIR = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+PROGRESS_DIR = APP_DIR / "progress"
 PROGRESS_DIR.mkdir(exist_ok=True)
 
 

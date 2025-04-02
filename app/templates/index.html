@@ -50,8 +50,8 @@
         <div class="container">
             <div class="left-panel">
                 <div class="form-group">
-                    <label for="file">Select JSON/JSONL/txt file:</label>
-                    <input type="file" id="file" accept=".json, .jsonl, .txt">
+                    <label for="file">Select file (supported formats: JSON, JSONL, TXT, MD, CSV, TSV, YAML, PDF, DOCX):</label>
+                    <input type="file" id="file" accept=".json, .jsonl, .txt, .md, .csv, .tsv, .yaml, .yml, .pdf, .docx">
                 </div>
                 
                 <div class="form-group">
@@ -63,8 +63,8 @@
                     <label for="conversion_type">Conversion type:</label>
                     <select id="conversion_type">
                         <option value="standard">Standard conversion</option>
-                        <option value="dictionary">Dictionary/glossary</option>
-                        <option value="translate">Translation (EN to other)</option>
+                        <!-- <option value="dictionary">Dictionary/glossary</option> -->
+                        <!-- <option value="translate">Translation (EN to other)</option> -->
                     </select>
                 </div>
                 
@@ -235,8 +235,8 @@
             <label for="multi_conversion_type">Conversion type for all files:</label>
             <select id="multi_conversion_type">
                 <option value="standard">Standard conversion</option>
-                <option value="dictionary">Dictionary/glossary</option>
-                <option value="translate">Translation (EN to other)</option>
+                <!-- <option value="dictionary">Dictionary/glossary</option> -->
+                <!-- <option value="translate">Translation (EN to other)</option> -->
             </select>
         </div>
         
