@@ -7,7 +7,7 @@ import os
 import random
 import asyncio
 from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks, WebSocket, WebSocketDisconnect, Request
-from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
+from fastapi.responses import JSONResponse, FileResponse, HTMLResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from typing import Optional, List, Dict, Any
@@ -18,13 +18,15 @@ import importlib.util
 import sys
 from dotenv import load_dotenv
 import traceback
+import zipfile
+import io
 
 # Import parser utilities
 from utils.parsers import parse_file
 
 # Import utility functions
 from utils import (
-    get_llm_client, anonymize_text, detect_pii, search_web, 
+    get_llm_client, anonymize_text, batch_anonymize_text, detect_pii, search_web, 
     generate_keywords_from_text, auto_generate_keywords,
     save_progress, get_progress, parallel_process, setup_logging
 )
@@ -218,7 +220,6 @@ async def convert_dataset(
         # LLM client if needed
         llm_client = None
         if add_reasoning or conversion_type in ["translate", "articles"]:
-            logger.debug("Initializing LLM client...")
             llm_client = get_llm_client(model_provider, api_key, base_url)
         
         # Optionally anonymize
@@ -227,7 +228,7 @@ async def convert_dataset(
             try:
                 with open(input_path, 'r', encoding='utf-8') as f:
                     content = f.read()
-                anonymized_content = anonymize_text(content)
+                anonymized_content = anonymize_text(content, consistent=True)
                 anonymized_path = os.path.join(
                     os.path.dirname(input_path), 
                     f"anonymized_{os.path.basename(input_path)}"
@@ -488,22 +489,24 @@ async def process_articles_endpoint(
         job_id = f"article_{dataset_name}"
         save_progress(job_id, 100, 0, success=True)
         
+        # For articles, we'll use the process_articles function directly with consistent anonymization
+        
         background_tasks.add_task(
-            convert_dataset,
-            job_id=job_id,
-            conversion_type="articles",
-            input_path=article_dir,
+            process_articles,
+            input_dir=article_dir,
             output_dir=output_dir,
-            model_provider=model_provider,
-            model_name=model_name,
-            add_reasoning=add_reasoning,
-            api_key=api_key,
+            qa_model=model_provider,
+            reasoning_model=model_provider,
+            add_reasoning_flag=add_reasoning,
+            qa_api_key=api_key,
+            reasoning_api_key=api_key,
             max_workers=max_workers,
             train_split=train_split,
-            anonymize=anonymize,
             keywords=parsed_keywords,
             use_web_search=use_web_search,
-            client_id=client_id
+            anonymize=anonymize,
+            progress_callback=lambda progress, total: save_progress(job_id, total, progress, success=True) if client_id else None,
+            consistent_anonymization=True
         )
         
         return JSONResponse({
@@ -578,30 +581,73 @@ async def convert_multiple_endpoint(
         save_progress(multi_job_id, len(files), 0, success=True)
         
         job_ids = []
-        # Przetwarzamy każdy plik osobno
-        for fpath in files:
+        all_file_contents = []
+        file_paths = []
+        dataset_names = []
+        output_dirs = []
+        
+        # First, collect all file contents if anonymization is requested
+        batch_anonymization_needed = anonymize
+        
+        if batch_anonymization_needed:
+            for fpath in files:
+                try:
+                    with open(fpath, 'r', encoding='utf-8') as f:
+                        file_content = f.read()
+                        all_file_contents.append(file_content)
+                        file_paths.append(fpath)
+                except Exception as e:
+                    logger.error(f"[BATCH] Error reading file {fpath}: {e}")
+                    continue
+            
+            # Apply batch anonymization with consistent replacements across files
+            if all_file_contents:
+                logger.info(f"[BATCH] Applying consistent anonymization across {len(all_file_contents)} files")
+                anonymized_contents = batch_anonymize_text(all_file_contents, consistent_across_texts=True)
+                
+                # Save anonymized files to temporary locations
+                for i, (content, fpath) in enumerate(zip(anonymized_contents, file_paths)):
+                    file_name = os.path.basename(fpath)
+                    anon_dir = tempfile.mkdtemp(dir=UPLOAD_DIR)
+                    anon_path = os.path.join(anon_dir, f"batch_anonymized_{file_name}")
+                    with open(anon_path, 'w', encoding='utf-8') as f:
+                        f.write(content)
+                    # Replace original path with anonymized path
+                    file_paths[i] = anon_path
+        else:
+            # If no anonymization, just use original files
+            file_paths = files
+        
+        # Process each file
+        for fpath in file_paths:
             file_name = os.path.basename(fpath)
-            dataset_name = file_name.replace('.json', '').replace('.jsonl', '').replace('.txt', '')
+            # Remove 'batch_anonymized_' prefix if present
+            clean_name = file_name.replace('batch_anonymized_', '')
+            dataset_name = clean_name.replace('.json', '').replace('.jsonl', '').replace('.txt', '')
+            
             # Put output in subfolder of the batch folder
             output_dir = os.path.join(batch_folder_path, dataset_name)
 
-            # Najpierw parsujemy do listy
+            # Parse file to list
             try:
                 parsed_list = parse_file(fpath, logger)
             except Exception as e:
                 logger.error(f"[BATCH] Parsing error for {fpath}: {e}")
-                continue  # pomijamy wadliwy plik, lub return z błędem
+                continue
             
-            # Zapisujemy w tymczasowym katalogu (dla każdego pliku osobno)
+            # Save to temporary directory
             tmp_dir = tempfile.mkdtemp(dir=UPLOAD_DIR)
-            parsed_json_path = os.path.join(tmp_dir, f"parsed_{file_name}.json")
+            parsed_json_path = os.path.join(tmp_dir, f"parsed_{clean_name}.json")
             with open(parsed_json_path, 'w', encoding='utf-8') as pf:
                 json.dump(parsed_list, pf, ensure_ascii=False, indent=2)
 
             # Initialize progress for that file
             save_progress(dataset_name, 100, 0, success=True)
 
-            # Wywołanie convert_dataset
+            # Start conversion task 
+            # If we've already done batch anonymization, disable file-level anonymization
+            file_anonymize = anonymize and not batch_anonymization_needed
+            
             background_tasks.add_task(
                 convert_dataset,
                 job_id=dataset_name,
@@ -615,7 +661,7 @@ async def convert_multiple_endpoint(
                 max_workers=max_workers,
                 train_split=train_split,
                 base_url=base_url,
-                anonymize=anonymize,
+                anonymize=file_anonymize,  # Only anonymize if we haven't done batch anonymization
                 keywords=parsed_keywords,
                 use_web_search=use_web_search,
                 client_id=client_id
@@ -708,6 +754,83 @@ async def download_file(job_id: str, file_type: str):
     
     return FileResponse(file_path, filename=f"{job_id}_{file_type}.jsonl")
 
+@app.get("/download/{batch_name}/{subdir}/{file_type}")
+async def download_batch_subdir_file(batch_name: str, subdir: str, file_type: str):
+    """Download a specific file from a batch subdirectory."""
+    logger.info(f"/download/{batch_name}/{subdir}/{file_type} - File download from batch subdirectory requested.")
+    if file_type not in ["train", "valid"]:
+        err_msg = "Invalid file type"
+        logger.error(err_msg)
+        return JSONResponse({"error": err_msg}, status_code=400)
+    
+    file_path = os.path.join(OUTPUT_DIR, batch_name, subdir, f"{file_type}.jsonl")
+    if not os.path.exists(file_path):
+        err_msg = "File not found"
+        logger.error(err_msg)
+        return JSONResponse({"error": err_msg}, status_code=404)
+    
+    return FileResponse(file_path, filename=f"{batch_name}_{subdir}_{file_type}.jsonl")
+
+@app.get("/download-zip/{dataset_name}")
+async def download_dataset_zip(dataset_name: str):
+    """Download entire dataset directory as a ZIP file."""
+    logger.info(f"/download-zip/{dataset_name} - ZIP download requested")
+    
+    dataset_path = os.path.join(OUTPUT_DIR, dataset_name)
+    if not os.path.exists(dataset_path):
+        return JSONResponse({"error": "Dataset not found"}, status_code=404)
+    
+    # Create in-memory ZIP file
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        # Walk through the directory and add all files
+        for root, _, files in os.walk(dataset_path):
+            for file in files:
+                file_path = os.path.join(root, file)
+                # Store with relative path
+                arcname = os.path.relpath(file_path, os.path.dirname(dataset_path))
+                zip_file.write(file_path, arcname)
+    
+    # Reset buffer position
+    zip_buffer.seek(0)
+    
+    # Return the ZIP file
+    return StreamingResponse(
+        zip_buffer, 
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename={dataset_name}.zip"}
+    )
+
+@app.get("/download-zip/{batch_name}/{subdir}")
+async def download_subdirectory_zip(batch_name: str, subdir: str):
+    """Download a specific subdirectory from a batch dataset as a ZIP file."""
+    logger.info(f"/download-zip/{batch_name}/{subdir} - Subdirectory ZIP download requested")
+    
+    subdir_path = os.path.join(OUTPUT_DIR, batch_name, subdir)
+    if not os.path.exists(subdir_path):
+        return JSONResponse({"error": "Subdirectory not found"}, status_code=404)
+    
+    # Create in-memory ZIP file
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        # Walk through the directory and add all files
+        for root, _, files in os.walk(subdir_path):
+            for file in files:
+                file_path = os.path.join(root, file)
+                # Store with relative path
+                arcname = os.path.relpath(file_path, os.path.dirname(subdir_path))
+                zip_file.write(file_path, arcname)
+    
+    # Reset buffer position
+    zip_buffer.seek(0)
+    
+    # Return the ZIP file
+    return StreamingResponse(
+        zip_buffer, 
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename={batch_name}_{subdir}.zip"}
+    )
+
 @app.get("/jobs")
 async def list_jobs():
     logger.info("Listing all jobs in /jobs endpoint.")
@@ -719,6 +842,26 @@ async def list_jobs():
         if os.path.isdir(job_dir):
             train_path = os.path.join(job_dir, "train.jsonl")
             valid_path = os.path.join(job_dir, "valid.jsonl")
+            
+            # Check if this is a batch directory
+            is_batch = job_name.startswith("batch_")
+            # For batch directories, count total files across all subdirectories
+            total_files = 0
+            subdirectories = []
+            
+            if is_batch:
+                for subdir in os.listdir(job_dir):
+                    subdir_path = os.path.join(job_dir, subdir)
+                    if os.path.isdir(subdir_path):
+                        subdirectories.append(subdir)
+                        sub_train = os.path.join(subdir_path, "train.jsonl")
+                        sub_valid = os.path.join(subdir_path, "valid.jsonl")
+                        if os.path.exists(sub_train):
+                            total_files += sum(1 for _ in open(sub_train, 'r'))
+                        if os.path.exists(sub_valid):
+                            total_files += sum(1 for _ in open(sub_valid, 'r'))
+            
+            # For direct train/valid files
             if os.path.exists(train_path) and os.path.exists(valid_path):
                 progress_data = get_progress(job_name)
                 completed = True
@@ -731,7 +874,38 @@ async def list_jobs():
                     "name": job_name,
                     "train_count": train_count,
                     "valid_count": valid_count,
-                    "completed": completed
+                    "completed": completed,
+                    "is_batch": is_batch,
+                    "total_files": total_files if is_batch else train_count + valid_count,
+                    "subdirectories": subdirectories if is_batch else []
+                })
+            # For batch directories without direct train/valid (only subdirectories)
+            elif is_batch and subdirectories:
+                progress_data = get_progress(job_name)
+                completed = True
+                if progress_data:
+                    completed = progress_data.get("completed", True)
+                
+                # Calculate total train and valid counts from all subdirectories
+                total_train = 0
+                total_valid = 0
+                for subdir in subdirectories:
+                    subdir_path = os.path.join(job_dir, subdir)
+                    sub_train = os.path.join(subdir_path, "train.jsonl")
+                    sub_valid = os.path.join(subdir_path, "valid.jsonl")
+                    if os.path.exists(sub_train):
+                        total_train += sum(1 for _ in open(sub_train, 'r'))
+                    if os.path.exists(sub_valid):
+                        total_valid += sum(1 for _ in open(sub_valid, 'r'))
+                
+                jobs.append({
+                    "name": job_name,
+                    "train_count": total_train,  # Sum of all train files in subdirectories
+                    "valid_count": total_valid,  # Sum of all valid files in subdirectories
+                    "completed": completed,
+                    "is_batch": True,
+                    "total_files": total_files,
+                    "subdirectories": subdirectories
                 })
     
     # check progress directory
@@ -747,7 +921,10 @@ async def list_jobs():
                     "name": job_name,
                     "train_count": 0,
                     "valid_count": 0,
-                    "completed": False
+                    "completed": False,
+                    "is_batch": job_name.startswith("batch_"),
+                    "total_files": 0,
+                    "subdirectories": []
                 })
     
     return jobs

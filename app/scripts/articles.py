@@ -126,7 +126,7 @@ def generate_qa_pairs(
     
     # Anonymize if requested
     if anonymize:
-        article_text = anonymize_text(article_text)
+        article_text = anonymize_text(article_text, consistent=True)
     
     # Extract metadata and content
     metadata = extract_article_metadata(article_text)
@@ -267,7 +267,8 @@ def process_articles(
     keywords=None,
     use_web_search=False,
     anonymize=False,
-    progress_callback=None
+    progress_callback=None,
+    consistent_anonymization=True
 ):
     """
     Processes a directory of articles into Q&A pairs.
@@ -313,17 +314,55 @@ def process_articles(
         keywords = auto_generate_keywords(sample_text, qa_client)
         print(f"Auto-generated keywords: {', '.join(keywords)}")
     
+    # If anonymization is requested and we want consistency across articles
+    if anonymize and consistent_anonymization and len(article_files) > 0:
+        print("Applying consistent anonymization across all articles...")
+        # Read all article texts
+        article_texts = []
+        valid_article_files = []
+        
+        for file_path in article_files:
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    article_text = f.read()
+                    article_texts.append(article_text)
+                    valid_article_files.append(file_path)
+            except Exception as e:
+                print(f"Error reading file {file_path}: {e}")
+        
+        # Batch anonymize all texts with consistent replacements
+        anonymized_texts = batch_anonymize_text(article_texts, consistent_across_texts=True)
+        
+        # Create temporary anonymized files
+        anonymized_paths = []
+        for i, (file_path, anon_text) in enumerate(zip(valid_article_files, anonymized_texts)):
+            file_name = os.path.basename(file_path)
+            anonymized_path = os.path.join(
+                os.path.dirname(file_path),
+                f"anonymized_{file_name}"
+            )
+            with open(anonymized_path, 'w', encoding='utf-8') as f:
+                f.write(anon_text)
+            anonymized_paths.append(anonymized_path)
+        
+        # Use anonymized files instead of originals
+        article_files = anonymized_paths
+        print(f"Created {len(anonymized_paths)} anonymized article files")
+    
     # Process articles to generate Q&A pairs
     all_examples = []
     
     def process_article(file_path):
         try:
+            # Only anonymize individually if we haven't done batch anonymization
+            individual_anonymize = anonymize and not (consistent_anonymization and anonymize)
+            
             qa_pairs = generate_qa_pairs(
                 file_path, 
                 qa_client, 
                 keywords, 
                 use_web_search,
-                anonymize
+                individual_anonymize
             )
             print(f"Generated {len(qa_pairs)} Q&A pairs for {os.path.basename(file_path)}")
             return qa_pairs
@@ -417,7 +456,8 @@ if __name__ == "__main__":
     parser.add_argument("--keywords", type=str, help="Comma-separated domain keywords or AUTO for automatic generation")
     parser.add_argument("--web-search", action="store_true", help="Use web search for enhancement")
     parser.add_argument("--anonymize", action="store_true", help="Anonymize sensitive data")
-    parser.set_defaults(reasoning=False)
+    parser.add_argument("--consistent-anonymization", action="store_true", help="Use consistent anonymization across files")
+    parser.set_defaults(reasoning=False, consistent_anonymization=True)
     
     args = parser.parse_args()
     
@@ -444,5 +484,6 @@ if __name__ == "__main__":
         train_split=args.train_split,
         keywords=keywords_list,
         use_web_search=args.web_search,
-        anonymize=args.anonymize
+        anonymize=args.anonymize,
+        consistent_anonymization=args.consistent_anonymization
     )

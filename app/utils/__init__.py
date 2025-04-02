@@ -12,7 +12,7 @@ from .client import (
     LMStudioClient
 )
 
-from .anonymizer import detect_pii, anonymize_text
+from .anonymizer import detect_pii, anonymize_text, batch_anonymize_text
 from .search import search_web
 from .keywords import generate_keywords_from_text, auto_generate_keywords
 from .progress import save_progress, get_progress

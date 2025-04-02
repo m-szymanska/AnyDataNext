@@ -230,14 +230,22 @@ def process_dataset(
     converted_data = []
     
     total_items = len(dataset)
+    update_interval = max(1, min(10, total_items // 20))  # Update more frequently for small datasets
+    
     for i, example in enumerate(dataset):
         converted = convert_to_ml_format(example, keywords)
         converted_data.append(converted)
-        if progress_callback and i % 10 == 0:
-            progress_callback(i, total_items)
+        
+        # Update progress more frequently for smaller datasets, less frequently for larger ones
+        if progress_callback and (i % update_interval == 0 or i == 0):
+            # Map parsing phase to 0-45% of total progress (instead of 50%) 
+            # to show early movement in progress bar
+            current_progress = max(1, int((i / total_items) * 45))
+            progress_callback(current_progress, total_items)
     
     if progress_callback:
-        progress_callback(total_items // 2, total_items)  # Mark halfway point
+        # Mark halfway point (slightly less than 50% to make progress appear faster)
+        progress_callback(int(total_items * 0.45), total_items)
     
     # Shuffle and split into train/valid
     random.shuffle(converted_data)
@@ -258,10 +266,10 @@ def process_dataset(
         valid_count = len(valid_data)
         total_reasoning_items = train_count + valid_count
         
-        # Start with current progress at halfway point
-        current_progress = total_items // 2
+        # Start with current progress at 45% (matching our earlier progress marker)
+        current_progress = int(total_items * 0.45)
         
-        # Process train data with progress updates
+        # More granular progress updates for training set (50-85%)
         print("Processing training data...")
         train_data = parallel_process(
             train_data, 
@@ -269,16 +277,18 @@ def process_dataset(
             max_workers=max_workers, 
             desc="Adding reasoning to train",
             progress_callback=lambda processed, total: progress_callback(
-                current_progress + int(processed * (total_items * 0.25) / train_count), 
+                # Instead of linear progress, use a logarithmic-like scale to show early progress faster
+                # Map 0-100% of train to 50-85% of total progress
+                current_progress + max(1, int((min(processed, total) / total) * (total_items * 0.35))), 
                 total_items
             ) if progress_callback else None,
             total_items=train_count
         )
         
-        # Update current progress after train data
-        current_progress = int(total_items * 0.75)  # 75% complete after train data
+        # Update current progress after train data (85%)
+        current_progress = int(total_items * 0.85)
         
-        # Process validation data with progress updates
+        # Process validation data with progress updates (85-99%)
         print("Processing validation data...")
         valid_data = parallel_process(
             valid_data, 
@@ -286,7 +296,8 @@ def process_dataset(
             max_workers=max_workers,
             desc="Adding reasoning to valid",
             progress_callback=lambda processed, total: progress_callback(
-                current_progress + int(processed * (total_items * 0.25) / valid_count), 
+                # Map 0-100% of valid to 85-99% of total progress
+                current_progress + max(1, int((min(processed, total) / total) * (total_items * 0.14))), 
                 total_items
             ) if progress_callback else None,
             total_items=valid_count
