@@ -566,7 +566,15 @@ async def convert_multiple_endpoint(
             except json.JSONDecodeError:
                 parsed_keywords = [k.strip() for k in keywords.split(',') if k.strip()]
 
-        multi_job_id = f"multi_{os.path.basename(source_dir)}"
+        # Create unique batch folder name with timestamp and optional tag
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+        batch_tag = os.path.basename(source_dir).replace(' ', '_')
+        batch_folder_name = f"batch_{timestamp}_{batch_tag}"
+        batch_folder_path = os.path.join(OUTPUT_DIR, batch_folder_name)
+        os.makedirs(batch_folder_path, exist_ok=True)
+        
+        multi_job_id = f"multi_{batch_folder_name}"
         save_progress(multi_job_id, len(files), 0, success=True)
         
         job_ids = []
@@ -574,7 +582,8 @@ async def convert_multiple_endpoint(
         for fpath in files:
             file_name = os.path.basename(fpath)
             dataset_name = file_name.replace('.json', '').replace('.jsonl', '').replace('.txt', '')
-            output_dir = os.path.join(OUTPUT_DIR, dataset_name)
+            # Put output in subfolder of the batch folder
+            output_dir = os.path.join(batch_folder_path, dataset_name)
 
             # Najpierw parsujemy do listy
             try:
@@ -638,7 +647,8 @@ async def convert_multiple_endpoint(
             "status": "Processing started",
             "file_count": len(files),
             "job_ids": job_ids,
-            "multi_job_id": multi_job_id
+            "multi_job_id": multi_job_id,
+            "batch_folder": batch_folder_name
         })
     except Exception as e:
         logger.error(f"Error in /convert-multiple/ endpoint: {str(e)}", exc_info=True)

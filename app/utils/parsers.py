@@ -5,6 +5,7 @@ import csv
 import yaml
 import logging
 import io
+import codecs
 from typing import List, Dict, Any, Optional, Tuple
 from pathlib import Path
 
@@ -114,6 +115,7 @@ def chunk_text(text: str, max_size: int = MAX_CHUNK_SIZE, min_size: int = MIN_CH
 def parse_txt(file_path: str, logger) -> List[Dict[str, str]]:
     """
     Parse a text file into chunks, with each chunk becoming a dataset record.
+    Handles files with different encodings including UTF-8 with Polish characters.
     
     Args:
         file_path (str): Path to the text file
@@ -123,12 +125,32 @@ def parse_txt(file_path: str, logger) -> List[Dict[str, str]]:
         list: List of record dictionaries
     """
     logger.info(f"[parse_txt] Parsing .txt file: {file_path}")
+    
+    # Try to detect encoding with chardet if available
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            text_content = f.read()
-    except Exception as e:
-        logger.error(f"[parse_txt] Error reading .txt file: {file_path}. Details: {e}")
-        raise
+        import chardet
+        with open(file_path, 'rb') as f:
+            rawdata = f.read()
+            result = chardet.detect(rawdata)
+            encoding = result['encoding']
+            logger.info(f"[parse_txt] Detected encoding: {encoding} with confidence {result['confidence']}")
+    except ImportError:
+        encoding = 'utf-8'
+        logger.info(f"[parse_txt] chardet not available, using default encoding: {encoding}")
+    
+    # Fall back encoding options if the default doesn't work
+    encoding_options = ['utf-8', 'iso-8859-2', 'cp1250', 'cp852']
+    if encoding and encoding not in encoding_options:
+        encoding_options.insert(0, encoding)
+    
+    # Try different encodings
+    for enc in encoding_options:
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                text_content = f.read()
+        except Exception as e:
+         logger.error(f"[parse_txt] Error reading .txt file: {file_path}. Details: {e}")
+         raise
     
     # Chunk the text to avoid extremely long records
     chunks = chunk_text(text_content)
@@ -137,7 +159,7 @@ def parse_txt(file_path: str, logger) -> List[Dict[str, str]]:
     parsed_data = []
     for i, chunk in enumerate(chunks):
         parsed_data.append({
-            "instruction": f"Process the following text segment (part {i+1} of {len(chunks)}):",
+            "instruction": "",
             "input": chunk,
             "output": "",
             "metadata": {
@@ -208,7 +230,7 @@ def parse_md(file_path: str, logger) -> List[Dict[str, str]]:
     parsed_data = []
     for i, chunk in enumerate(all_chunks):
         parsed_data.append({
-            "instruction": f"Process the following markdown content (part {i+1} of {len(all_chunks)}):",
+            "instruction": "",
             "input": chunk,
             "output": "",
             "metadata": {
@@ -274,7 +296,7 @@ def parse_csv(file_path: str, logger) -> List[Dict[str, str]]:
                     chunks = chunk_text(flattened_text)
                     for j, chunk in enumerate(chunks):
                         parsed_data.append({
-                            "instruction": f"Process the following data (row {i+1}, part {j+1} of {len(chunks)}):",
+                            "instruction": "",
                             "input": chunk,
                             "output": "",
                             "metadata": {
@@ -321,23 +343,13 @@ def parse_csv(file_path: str, logger) -> List[Dict[str, str]]:
                                 }
                             })
                 else:
-                    # Default case: use first column as instruction if possible
-                    instruction_col = headers[0]
-                    
-                    # Try to find better instruction column names
-                    potential_instruction_cols = ['instruction', 'prompt', 'query', 'question']
-                    for col in potential_instruction_cols:
-                        if col.lower() in [h.lower() for h in headers]:
-                            instruction_col = next(h for h in headers if h.lower() == col.lower())
-                            break
-                    
-                    # Use the selected column as instruction
-                    instruction = row[instruction_col] if row[instruction_col] else f"Process row {i+1} data:"
-                    
-                    # Format other columns as input
+                    # Include all columns in the input text without using any as instruction
+                    instruction = ""
                     input_text = ""
+                    
+                    # Format all columns as input
                     for key, value in row.items():
-                        if key != instruction_col and value:
+                        if value:
                             input_text += f"{key}: {value}\n"
                     
                     parsed_data.append({
@@ -414,7 +426,7 @@ def _process_json_item(item: Any, path: str = '', logger=None) -> List[Dict[str,
                 
                 for i, chunk in enumerate(chunks):
                     records.append({
-                        "instruction": f"Process the following text from '{section_title}' (part {i+1} of {len(chunks)}):",
+                        "instruction": "",
                         "input": chunk,
                         "output": "",
                         "metadata": {
@@ -444,7 +456,7 @@ def _process_json_item(item: Any, path: str = '', logger=None) -> List[Dict[str,
         chunks = chunk_text(item)
         for i, chunk in enumerate(chunks):
             records.append({
-                "instruction": f"Process the following text (part {i+1} of {len(chunks)}):",
+                "instruction": "",
                 "input": chunk,
                 "output": "",
                 "metadata": {
@@ -481,8 +493,8 @@ def parse_json_file(file_path: str, logger) -> List[Dict[str, str]]:
         logger.warning(f"[parse_json_file] Could not extract any records from JSON: {file_path}")
         # Fallback: create a single record with the raw JSON
         return [{
-            "instruction": f"Process the following JSON data:",
-            "input": json.dumps(data, indent=2),
+            "instruction": "",
+            "input": json.dumps(data, indent=2, ensure_ascii=False),
             "output": "",
             "metadata": {"source_file": os.path.basename(file_path)}
         }]
@@ -520,8 +532,8 @@ def parse_jsonl_file(file_path: str, logger) -> List[Dict[str, str]]:
                     else:
                         # Fallback if no records could be extracted
                         parsed_data.append({
-                            "instruction": f"Process the following JSON data from line {line_num}:",
-                            "input": json.dumps(obj, indent=2),
+                            "instruction": "",
+                            "input": json.dumps(obj, indent=2, ensure_ascii=False),
                             "output": "",
                             "metadata": {
                                 "line_number": line_num,
@@ -564,8 +576,8 @@ def parse_yaml_file(file_path: str, logger) -> List[Dict[str, str]]:
         logger.warning(f"[parse_yaml_file] Could not extract any records from YAML: {file_path}")
         # Fallback: create a single record with the raw YAML
         return [{
-            "instruction": f"Process the following YAML data:",
-            "input": yaml.dump(data),
+            "instruction": "",
+            "input": yaml.dump(data, allow_unicode=True),
             "output": "",
             "metadata": {"source_file": os.path.basename(file_path)}
         }]
@@ -634,7 +646,7 @@ def parse_docx(file_path: str, logger) -> List[Dict[str, str]]:
             
             for i, chunk in enumerate(chunks):
                 parsed_data.append({
-                    "instruction": f"Process the following document text (part {i+1} of {len(chunks)}):",
+                    "instruction": "",
                     "input": chunk,
                     "output": "",
                     "metadata": {
@@ -654,7 +666,7 @@ def parse_docx(file_path: str, logger) -> List[Dict[str, str]]:
                     chunks = chunk_text(content)
                     for j, chunk in enumerate(chunks):
                         parsed_data.append({
-                            "instruction": f"Process the following document section '{heading}' (part {j+1} of {len(chunks)}):",
+                            "instruction": "",
                             "input": chunk,
                             "output": "",
                             "metadata": {
@@ -667,7 +679,7 @@ def parse_docx(file_path: str, logger) -> List[Dict[str, str]]:
                         })
                 else:
                     parsed_data.append({
-                        "instruction": f"Process the following document section '{heading}':",
+                        "instruction": "",
                         "input": content,
                         "output": "",
                         "metadata": {
@@ -707,7 +719,7 @@ def parse_docx(file_path: str, logger) -> List[Dict[str, str]]:
                 table_text = table_text.rstrip(", ") + "\n"
             
             parsed_data.append({
-                "instruction": f"Process the following table from the document (Table {i+1}):",
+                "instruction": "",
                 "input": table_text,
                 "output": "",
                 "metadata": {
@@ -776,7 +788,7 @@ def parse_pdf(file_path: str, logger) -> List[Dict[str, str]]:
                     chunks = chunk_text(page_text)
                     for j, chunk in enumerate(chunks):
                         parsed_data.append({
-                            "instruction": f"Process the following PDF text from page {i+1} (part {j+1} of {len(chunks)}):",
+                            "instruction": "",
                             "input": chunk,
                             "output": "",
                             "metadata": {
@@ -788,7 +800,7 @@ def parse_pdf(file_path: str, logger) -> List[Dict[str, str]]:
                         })
                 else:
                     parsed_data.append({
-                        "instruction": f"Process the following PDF text from page {i+1}:",
+                        "instruction": "",
                         "input": page_text,
                         "output": "",
                         "metadata": {
@@ -801,7 +813,7 @@ def parse_pdf(file_path: str, logger) -> List[Dict[str, str]]:
             chunks = chunk_text(text)
             for i, chunk in enumerate(chunks):
                 parsed_data.append({
-                    "instruction": f"Process the following PDF text (part {i+1} of {len(chunks)}):",
+                    "instruction": "",
                     "input": chunk,
                     "output": "",
                     "metadata": {
