@@ -10,4 +10,6 @@ requests>=2.28.0
 aiofiles>=23.0
 websockets>=10.0
 python-slugify>=8.0.0
-brave-search>=1.0.1
+pyyaml>=6.0.0
+python-docx>=0.8.11
+pdfminer.six>=20221105

@@ -19,6 +19,7 @@ from utils import get_llm_client, auto_generate_keywords, parallel_process
 def convert_to_ml_format(example, keywords=None):
     """
     Converts an example from standard format to ML format.
+    Intelligently splits input into prompt/completion based on diagnosis patterns.
     
     Args:
         example (dict): Input example with 'instruction', 'input', 'output'
@@ -31,17 +32,48 @@ def convert_to_ml_format(example, keywords=None):
     input_text = example.get('input', '')
     output = example.get('output', '')
     
-    prompt = f"Task: {instruction}\n"
+    # Build full text
+    full_text = ""
     if input_text:
-        prompt += f"{input_text}\n"
-    prompt += "Response:"
+        full_text = input_text
+    else:
+        full_text = instruction
     
+    # Try to split into prompt/completion based on diagnosis patterns
     completion = output
+    prompt = full_text
     
+    # Define diagnosis keywords in different languages
+    diagnosis_markers = [
+        "diagnoza", "diagnosis", "podejrzenie", "suspected", 
+        "rozpoznanie", "assessment", "diagnóstico", "diagnose"
+    ]
+    
+    # Check if we can split the text intelligently
+    if not completion and full_text:
+        # First try to find diagnosis line
+        lines = full_text.split('\n')
+        split_index = None
+        
+        for i, line in enumerate(lines):
+            line_lower = line.lower()
+            # Check if this line contains a diagnosis marker
+            if any(marker in line_lower for marker in diagnosis_markers):
+                split_index = i
+                break
+        
+        # If we found a diagnosis line, split the text
+        if split_index is not None:
+            prompt_lines = lines[:split_index]
+            completion_lines = lines[split_index:]
+            
+            prompt = '\n'.join(prompt_lines) + '\n'
+            completion = '\n'.join(completion_lines)
+        
     # Add keyword hints if provided
     if keywords and keywords != ["AUTO"]:
         hint = f"\nRelevant keywords: {', '.join(keywords)}"
-        prompt = prompt.replace("Task:", f"Task:{hint}\n")
+        prompt += hint
     
     return {
         "prompt": prompt,
@@ -52,6 +84,7 @@ def convert_to_ml_format(example, keywords=None):
 def add_reasoning(item, llm_client, keywords=None):
     """
     Adds reasoning traces to an example using an LLM.
+    Preserves original diagnosis when available.
     
     Args:
         item (dict): Example with 'prompt' and 'completion'
@@ -61,18 +94,63 @@ def add_reasoning(item, llm_client, keywords=None):
     Returns:
         dict: Example with reasoning added to completion
     """
-    system_prompt = "Generate step-by-step reasoning for answering this question. Format: <thinking>reasoning</thinking> answer."
+    # If there's no completion, generate both reasoning and answer
+    if not item['completion'] or item['completion'].strip() == "":
+        system_prompt = """
+        Jesteś ekspertem analizującym dane z różnych dziedzin, w tym dane weterynaryjne i medyczne.
+        Na podstawie otrzymanych informacji:
+        1. <thinking>Przedstaw szczegółową analizę danych, rozważ możliwe interpretacje i wnioski</thinking>
+        2. Dokonaj oceny i przedstaw rekomendacje.
+
+        WAŻNE: Zawsze odpowiadaj w języku polskim, niezależnie od języka danych wejściowych.
+        Używaj odpowiedniej terminologii specjalistycznej, zwłaszcza w kontekście weterynaryjnym i medycznym.
+        """
+        
+        if keywords and keywords != ["AUTO"]:
+            system_prompt += f"\n\nPowiązane pojęcia dziedzinowe: {', '.join(keywords)}"
+        
+        user_prompt = f"Dane wejściowe:\n{item['prompt']}"
+        
+        messages = [{"role": "user", "content": user_prompt}]
+        response = llm_client.generate(messages, system=system_prompt, temperature=0.5)
+        
+        if response:
+            return {"prompt": item["prompt"], "completion": response}
     
-    if keywords and keywords != ["AUTO"]:
-        system_prompt += f"\n\nRelevant domain concepts: {', '.join(keywords)}"
+    # If there's already a completion, add reasoning to it
+    else:
+        system_prompt = """
+        Jesteś ekspertem analizującym dane z różnych dziedzin, w tym dane weterynaryjne i medyczne.
+        Na podstawie otrzymanych informacji i już istniejącej oceny:
+        1. Dodaj <thinking>Szczegółową analizę przedstawionych danych, możliwe interpretacje i rozważania</thinking>
+        2. WAŻNE: Zachowaj oryginalną diagnozę/ocenę dokładnie jak w poniższym przykładzie, a następnie dodaj swoje uzupełnienia.
+
+        Format odpowiedzi:
+        <thinking>
+        Twoja szczegółowa analiza...
+        </thinking>
+        
+        ORYGINALNA DIAGNOZA:
+        [tu wstaw oryginalną diagnozę bez zmian]
+        
+        UZUPEŁNIENIE:
+        [tu dodaj swoje uzupełnienia, rekomendacje, dodatkowe szczegóły]
+
+        WAŻNE: Zawsze odpowiadaj w języku polskim, niezależnie od języka danych wejściowych.
+        Używaj odpowiedniej terminologii specjalistycznej, zwłaszcza w kontekście weterynaryjnym i medycznym.
+        """
+        
+        if keywords and keywords != ["AUTO"]:
+            system_prompt += f"\n\nPowiązane pojęcia dziedzinowe: {', '.join(keywords)}"
+        
+        user_prompt = f"Dane wejściowe:\n{item['prompt']}\n\nObecna diagnoza/ocena:\n{item['completion']}"
+        
+        messages = [{"role": "user", "content": user_prompt}]
+        response = llm_client.generate(messages, system=system_prompt, temperature=0.5)
+        
+        if response:
+            return {"prompt": item["prompt"], "completion": response}
     
-    user_prompt = f"Instruction: {item['prompt']}\nAnswer: {item['completion']}"
-    
-    messages = [{"role": "user", "content": user_prompt}]
-    response = llm_client.generate(messages, system=system_prompt, temperature=0.5)
-    
-    if response:
-        return {"prompt": item["prompt"], "completion": response}
     return item
 
 
@@ -174,22 +252,44 @@ def process_dataset(
         def process_with_reasoning(item):
             return add_reasoning(item, llm_client, keywords)
         
-        # Process train data
+        # Calculate progress offsets for each phase
+        # We've used half of total progress for parsing, remaining half for LLM processing
+        train_count = len(train_data)
+        valid_count = len(valid_data)
+        total_reasoning_items = train_count + valid_count
+        
+        # Start with current progress at halfway point
+        current_progress = total_items // 2
+        
+        # Process train data with progress updates
         print("Processing training data...")
         train_data = parallel_process(
             train_data, 
             process_with_reasoning, 
             max_workers=max_workers, 
-            desc="Adding reasoning to train"
+            desc="Adding reasoning to train",
+            progress_callback=lambda processed, total: progress_callback(
+                current_progress + int(processed * (total_items * 0.25) / train_count), 
+                total_items
+            ) if progress_callback else None,
+            total_items=train_count
         )
         
-        # Process validation data
+        # Update current progress after train data
+        current_progress = int(total_items * 0.75)  # 75% complete after train data
+        
+        # Process validation data with progress updates
         print("Processing validation data...")
         valid_data = parallel_process(
             valid_data, 
             process_with_reasoning, 
             max_workers=max_workers,
-            desc="Adding reasoning to valid"
+            desc="Adding reasoning to valid",
+            progress_callback=lambda processed, total: progress_callback(
+                current_progress + int(processed * (total_items * 0.25) / valid_count), 
+                total_items
+            ) if progress_callback else None,
+            total_items=valid_count
         )
     
     if progress_callback:

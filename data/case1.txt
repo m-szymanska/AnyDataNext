@@ -1,0 +1,3 @@
+Pacjent: Pies, samiec, 8 lat
+Objawy: kaszel, brak apetytu
+Diagnoza wstępna: zapalenie oskrzeli

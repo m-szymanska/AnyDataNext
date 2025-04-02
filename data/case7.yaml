@@ -1,0 +1,4 @@
+prompt: Wygeneruj podsumowanie wizyty pacjenta na podstawie poniższych danych
+inputs:
+  - objawy: brak apetytu, wymioty
+  - gatunek: pies
