@@ -4,6 +4,7 @@ Utilities for parallel processing.
 
 import concurrent.futures
 from tqdm import tqdm
+from .anonymizer import anonymize_text, batch_anonymize_text
 
 
 def parallel_process(items, process_fn, max_workers=4, desc="Processing", progress_callback=None, total_items=None):
@@ -39,7 +40,11 @@ def parallel_process(items, process_fn, max_workers=4, desc="Processing", progre
             
             # Update progress after each item is completed
             processed_count += 1
-            if progress_callback and processed_count % max(1, len(items) // 10) == 0:
+            # More frequent updates for smaller batches, less frequent for larger ones
+            # For very small datasets (< 10 items), update on every item
+            update_interval = 1 if len(items) < 10 else max(1, min(5, len(items) // 20))
+            
+            if progress_callback and (processed_count % update_interval == 0 or processed_count == 1 or processed_count == total):
                 progress_callback(processed_count, total)
     
     # Sort results by original order

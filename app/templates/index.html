@@ -242,7 +242,7 @@
         
         <div class="form-group">
             <label for="source_dir">Source directory:</label>
-            <input type="text" id="source_dir" placeholder="e.g. /path/to/json/files">
+            <input type="text" id="source_dir" placeholder="e.g. /path/to/your/files">
         </div>
         
         <div class="form-group">
@@ -333,6 +333,64 @@
         </table>
     </div>
     
+    <style>
+        /* Add styles for modal overlay */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 1000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .batch-modal {
+            position: relative;
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            width: 80%;
+            max-height: 80%;
+            overflow-y: auto;
+        }
+        .close-modal {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+        }
+        .batch-indicator {
+            background-color: #9C27B0;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 4px;
+            margin-left: 5px;
+        }
+        .batch-details-btn {
+            background: #9C27B0;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 3px 8px;
+            cursor: pointer;
+            margin-left: 5px;
+        }
+        .download-zip-btn {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            text-decoration: none;
+            border-radius: 4px;
+            display: inline-block;
+            margin-top: 10px;
+        }
+    </style>
     <script>
         // Generate unique client ID for WebSocket
         const CLIENT_ID = 'client_' + Math.random().toString(36).substring(2, 15);
@@ -354,6 +412,12 @@
             
             socket.onmessage = function(event) {
                 try {
+                    // Handle ping/pong messages
+                    if (event.data === "pong") {
+                        console.log("Received pong from server");
+                        return;
+                    }
+                    
                     const data = JSON.parse(event.data);
                     if (data.job_id) {
                         updateProgressBar(data.job_id, data.percentage);
@@ -838,6 +902,53 @@
             });
         }
         
+        // Function to show batch details
+        function showBatchDetails(batchName, subdirectories) {
+            // Create modal dialog
+            const modalOverlay = document.createElement('div');
+            modalOverlay.className = 'modal-overlay';
+            
+            const modal = document.createElement('div');
+            modal.className = 'batch-modal';
+            
+            let content = `<h2>Batch Dataset: ${batchName}</h2>`;
+            content += `<button id="closeModal" class="close-modal">×</button>`;
+            content += `<p>This batch contains ${subdirectories.length} datasets:</p>`;
+            
+            content += `<table style="width:100%;border-collapse:collapse;">
+                <tr>
+                    <th style="text-align:left;padding:8px;border-bottom:1px solid #ddd;">Dataset</th>
+                    <th style="text-align:left;padding:8px;border-bottom:1px solid #ddd;">Actions</th>
+                </tr>`;
+            
+            subdirectories.forEach(subdir => {
+                content += `<tr>
+                    <td style="padding:8px;border-bottom:1px solid #ddd;">${subdir}</td>
+                    <td style="padding:8px;border-bottom:1px solid #ddd;">
+                        <a href="/download/${batchName}/${subdir}/train">Train</a> |
+                        <a href="/download/${batchName}/${subdir}/valid">Valid</a> |
+                        <a href="/download-zip/${batchName}/${subdir}">ZIP</a>
+                    </td>
+                </tr>`;
+            });
+            
+            content += `</table>`;
+            content += `<div style="margin-top:20px;text-align:center;">
+                <a href="/download-zip/${batchName}" class="download-zip-btn">
+                    Download Entire Batch as ZIP
+                </a>
+            </div>`;
+            
+            modal.innerHTML = content;
+            modalOverlay.appendChild(modal);
+            document.body.appendChild(modalOverlay);
+            
+            // Close button handler
+            document.getElementById('closeModal').addEventListener('click', function() {
+                document.body.removeChild(modalOverlay);
+            });
+        }
+        
         // Load jobs list
         async function loadJobs() {
             try {
@@ -861,18 +972,37 @@
                     const statusBadge = job.completed 
                         ? '<span style="background-color: #4CAF50; color: white; padding: 3px 8px; border-radius: 4px;">Complete</span>' 
                         : '<span style="background-color: #2196F3; color: white; padding: 3px 8px; border-radius: 4px;">In Progress</span>';
+                    
+                    // Check if this is a batch dataset
+                    const isBatch = job.is_batch;
+                    const batchIndicator = isBatch 
+                        ? '<span class="batch-indicator">Batch</span>' 
+                        : '';
+                    
+                    const cellContent = isBatch 
+                        ? `${job.name}${batchIndicator} <button class="batch-details-btn">View Contents</button>` 
+                        : job.name;
                         
                     row.innerHTML = `
-                        <td>${job.name}</td>
+                        <td>${cellContent}</td>
                         <td>${job.train_count}</td>
                         <td>${job.valid_count}</td>
                         <td>${statusBadge}</td>
                         <td>
                             <a href="/download/${job.name}/train">Train</a> |
-                            <a href="/download/${job.name}/valid">Valid</a>
+                            <a href="/download/${job.name}/valid">Valid</a> |
+                            <a href="/download-zip/${job.name}">ZIP</a>
                         </td>
                     `;
                     tableBody.appendChild(row);
+                    
+                    // Add event listener for batch details button
+                    if (isBatch) {
+                        const detailsBtn = row.querySelector('.batch-details-btn');
+                        detailsBtn.addEventListener('click', function() {
+                            showBatchDetails(job.name, job.subdirectories);
+                        });
+                    }
                 });
             } catch (error) {
                 console.error('Error loading jobs:', error);
