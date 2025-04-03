@@ -49,28 +49,23 @@
     <div class="tab-content active" id="file-upload">
         <div class="container">
             <div class="left-panel">
+                <h2>Upload and Convert</h2>
                 <div class="form-group">
-                    <label for="file">Select file (supported formats: JSON, JSONL, TXT, MD, CSV, TSV, YAML, PDF, DOCX):</label>
-                    <input type="file" id="file" accept=".json, .jsonl, .txt, .md, .csv, .tsv, .yaml, .yml, .pdf, .docx">
+                    <label for="file">Select File</label>
+                    <input type="file" id="file" name="file">
                 </div>
                 
                 <div class="form-group">
-                    <label for="dataset_name">Dataset name (output folder):</label>
-                    <input type="text" id="dataset_name" placeholder="e.g. medical-dataset">
-                </div>
-                
-                <div class="form-group">
-                    <label for="conversion_type">Conversion type:</label>
-                    <select id="conversion_type">
-                        <option value="standard">Standard conversion</option>
-                        <!-- <option value="dictionary">Dictionary/glossary</option> -->
-                        <!-- <option value="translate">Translation (EN to other)</option> -->
+                    <label for="conversion-type">Conversion Type</label>
+                    <select id="conversion-type" name="conversion-type">
+                        <option value="standard">Standard (Instruction-Output)</option>
+                        <option value="articles">Articles (Q&A Generation)</option>
                     </select>
                 </div>
                 
                 <div class="form-group">
-                    <label for="model_provider">Model provider:</label>
-                    <select id="model_provider" onchange="updateModelsList()">
+                    <label for="model-provider">Model Provider</label>
+                    <select id="model-provider" name="model-provider">
                         <option value="anthropic">Claude (Anthropic)</option>
                         <option value="openai">OpenAI</option>
                         <option value="deepseek">DeepSeek</option>
@@ -81,173 +76,158 @@
                 </div>
                 
                 <div class="form-group">
-                    <label for="model_name">Model:</label>
-                    <select id="model_name">
-                        <option value="claude-3-5-sonnet-20240620">claude-3-5-sonnet-20240620</option>
-                        <option value="claude-3-opus-20240229">claude-3-opus-20240229</option>
-                        <option value="claude-3-sonnet-20240229">claude-3-sonnet-20240229</option>
-                        <option value="claude-3-haiku-20240307">claude-3-haiku-20240307</option>
-                    </select>
+                    <label for="model-name">Model</label>
+                    <select id="model-name" name="model-name"></select>
                 </div>
                 
-                <div class="form-group api-key-container">
-                    <label for="api_key">API key:</label>
-                    <input type="password" id="api_key" placeholder="Enter API key">
+                <div id="lmstudio-settings" style="display: none;">
+                    <div class="form-group">
+                        <label for="base-url">LM Studio URL</label>
+                        <input type="text" id="base-url" name="base-url" value="http://localhost:1234">
+                    </div>
                 </div>
                 
                 <div class="form-group">
-                    <label for="keywords">Keywords (comma-separated):</label>
-                    <input type="text" id="keywords" placeholder="e.g. medicine, disease, treatment or AUTO for automatic generation">
+                    <label for="api-key">API Key (Optional, will use env value if not provided)</label>
+                    <input type="password" id="api-key" name="api-key" placeholder="Enter API key (optional)">
                 </div>
                 
-                <button class="collapsible">Advanced options <span class="expand-arrow">▼</span></button>
+                <button class="collapsible">Advanced Options <span class="expand-arrow">▼</span></button>
                 <div class="collapsible-content">
-                    <div class="form-group checkbox-group">
-                        <input type="checkbox" id="add_reasoning" checked>
-                        <label for="add_reasoning">Add reasoning traces</label>
-                    </div>
-                    
-                    <div class="form-group checkbox-group">
-                        <input type="checkbox" id="anonymize">
-                        <label for="anonymize">Anonymize sensitive data</label>
-                    </div>
-                    
-                    <div class="form-group checkbox-group">
-                        <input type="checkbox" id="use_web_search">
-                        <label for="use_web_search">Use web search</label>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="max_workers">Number of threads:</label>
-                        <input type="number" id="max_workers" value="4" min="1" max="20">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="train_split">Train/valid ratio (0.8 = 80% train):</label>
-                        <input type="number" id="train_split" value="0.8" min="0.5" max="0.95" step="0.05">
-                    </div>
-                    
-                    <div class="form-group lmstudio-settings" style="display: none;">
-                        <label for="base_url">LM Studio URL:</label>
-                        <input type="text" id="base_url" value="http://localhost:1234" placeholder="http://localhost:1234">
+                    <div class="advanced-options">
+                        <div class="form-group">
+                            <label for="max-chunks">Max Chunks (0 for unlimited)</label>
+                            <input type="number" id="max-chunks" name="max-chunks" value="0" min="0">
+                        </div>
+                        
+                        <div class="form-group checkbox-group">
+                            <input type="checkbox" id="anonymize" name="anonymize">
+                            <label for="anonymize">Anonymize Personal Information</label>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="train-split">Train Split (0.0 - 1.0)</label>
+                            <input type="number" id="train-split" name="train-split" value="0.8" min="0" max="1" step="0.1">
+                        </div>
+                        
+                        <div class="form-group checkbox-group">
+                            <input type="checkbox" id="keyword-extraction" name="keyword-extraction">
+                            <label for="keyword-extraction">Extract Keywords</label>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="chunk-size">Chunk Size (characters)</label>
+                            <input type="number" id="chunk-size" name="chunk-size" value="2000" min="100">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="overlap-size">Chunk Overlap (characters)</label>
+                            <input type="number" id="overlap-size" name="overlap-size" value="200" min="0">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="system-prompt">System Prompt (Optional)</label>
+                            <textarea id="system-prompt" name="system-prompt" rows="3" placeholder="Enter system prompt"></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="user-prompt">User Prompt Template (Optional)</label>
+                            <textarea id="user-prompt" name="user-prompt" rows="3" placeholder="Enter user prompt template with {text} placeholder"></textarea>
+                        </div>
                     </div>
                 </div>
                 
-                <button id="submit">Convert Dataset</button>
+                <button id="submit">Convert</button>
                 
-                <div id="progress-container" class="progress-container" style="display: none;">
-                    <div id="progress-bar" class="progress-bar">0%</div>
+                <div id="status" class="status">
+                    <h3>Conversion Status: <span id="status-text">Initializing...</span></h3>
+                    <div class="progress-container">
+                        <div id="progress-bar" class="progress-bar">0%</div>
+                    </div>
+                    <div id="download-container" style="display: none; margin-top: 15px;">
+                        <button id="download-jsonl">Download JSONL</button>
+                        <button id="download-zip">Download ZIP</button>
+                    </div>
                 </div>
             </div>
             
             <div class="right-panel">
-                <h3>Recently used files</h3>
-                <div id="recent_files">
-                    <!-- Dynamically added recent files -->
+                <h2>Existing Datasets</h2>
+                <div id="jobs-list" class="jobs">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Files</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="jobs-table-body">
+                            <!-- Jobs will be filled in dynamically -->
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
-        
-        <div id="status" class="status"></div>
     </div>
     
     <div class="tab-content" id="article-processing">
+        <h2>Article Processing</h2>
         <div class="form-group">
-            <label for="article_dir">Articles directory:</label>
-            <input type="text" id="article_dir" placeholder="e.g. /path/to/articles">
+            <label for="article-text">Enter Article Text</label>
+            <textarea id="article-text" name="article-text" rows="10" placeholder="Paste article content here..."></textarea>
         </div>
         
         <div class="form-group">
-            <label for="article_dataset_name">Dataset name (output folder):</label>
-            <input type="text" id="article_dataset_name" placeholder="e.g. medical-articles-qa">
-        </div>
-        
-        <div class="form-group">
-            <label for="article_model_provider">Model provider:</label>
-            <select id="article_model_provider" onchange="updateArticleModelsList()">
-                <option value="anthropic">Claude (Anthropic)</option>
-                <option value="openai">OpenAI</option>
-                <option value="deepseek">DeepSeek</option>
-                <option value="qwen">Qwen</option>
-                <option value="mistral">Mistral AI</option>
+            <label for="article-model">Model</label>
+            <select id="article-model" name="article-model">
+                <option value="anthropic:claude-3-opus-20240229">Claude 3 Opus</option>
+                <option value="openai:gpt-4o">GPT-4o</option>
             </select>
         </div>
         
         <div class="form-group">
-            <label for="article_model_name">Model:</label>
-            <select id="article_model_name">
-                <option value="claude-3-5-sonnet-20240620">claude-3-5-sonnet-20240620</option>
-                <option value="claude-3-opus-20240229">claude-3-opus-20240229</option>
-                <option value="claude-3-sonnet-20240229">claude-3-sonnet-20240229</option>
-                <option value="claude-3-haiku-20240307">claude-3-haiku-20240307</option>
-            </select>
+            <label for="questions-count">Number of Questions</label>
+            <input type="number" id="questions-count" name="questions-count" value="5" min="1" max="20">
         </div>
         
-        <div class="form-group">
-            <label for="article_api_key">API key:</label>
-            <input type="password" id="article_api_key" placeholder="Enter API key">
-        </div>
+        <button id="process-article">Process Article</button>
         
-        <div class="form-group">
-            <label for="article_keywords">Keywords for all articles (comma-separated):</label>
-            <input type="text" id="article_keywords" placeholder="e.g. medicine, disease, treatment or AUTO for automatic generation">
-        </div>
-        
-        <button class="collapsible">Advanced options <span class="expand-arrow">▼</span></button>
-        <div class="collapsible-content">
-            <div class="form-group checkbox-group">
-                <input type="checkbox" id="article_add_reasoning" checked>
-                <label for="article_add_reasoning">Add reasoning traces</label>
+        <div id="article-result" class="status">
+            <h3>Processing Status: <span id="article-status-text">Initializing...</span></h3>
+            <div class="progress-container">
+                <div id="article-progress-bar" class="progress-bar">0%</div>
             </div>
-            
-            <div class="form-group checkbox-group">
-                <input type="checkbox" id="article_use_web_search">
-                <label for="article_use_web_search">Use web search</label>
-            </div>
-            
-            <div class="form-group checkbox-group">
-                <input type="checkbox" id="article_anonymize">
-                <label for="article_anonymize">Anonymize sensitive data</label>
-            </div>
-            
-            <div class="form-group">
-                <label for="article_max_workers">Number of threads:</label>
-                <input type="number" id="article_max_workers" value="4" min="1" max="20">
-            </div>
-            
-            <div class="form-group">
-                <label for="article_train_split">Train/valid ratio (0.8 = 80% train):</label>
-                <input type="number" id="article_train_split" value="0.8" min="0.5" max="0.95" step="0.05">
+            <div id="article-output" style="margin-top: 15px; white-space: pre-wrap;"></div>
+            <div id="article-download-container" style="display: none; margin-top: 15px;">
+                <button id="download-article-jsonl">Download JSONL</button>
             </div>
         </div>
-        
-        <button id="process_articles">Process Articles</button>
-        
-        <div id="article_progress-container" class="progress-container" style="display: none;">
-            <div id="article_progress-bar" class="progress-bar">0%</div>
-        </div>
-        
-        <div id="article_status" class="status"></div>
     </div>
     
     <div class="tab-content" id="multi-files">
+        <h2>Batch Processing</h2>
+        <div id="selected-files-container">
+            <h3>Selected Files</h3>
+            <div id="selected-files"></div>
+        </div>
+        
         <div class="form-group">
-            <label for="multi_conversion_type">Conversion type for all files:</label>
-            <select id="multi_conversion_type">
-                <option value="standard">Standard conversion</option>
-                <!-- <option value="dictionary">Dictionary/glossary</option> -->
-                <!-- <option value="translate">Translation (EN to other)</option> -->
+            <label for="file-batch">Select Files</label>
+            <input type="file" id="file-batch" name="file-batch" multiple>
+        </div>
+        
+        <div class="form-group">
+            <label for="batch-conversion-type">Conversion Type</label>
+            <select id="batch-conversion-type" name="batch-conversion-type">
+                <option value="standard">Standard (Instruction-Output)</option>
+                <option value="articles">Articles (Q&A Generation)</option>
             </select>
         </div>
         
         <div class="form-group">
-            <label for="source_dir">Source directory:</label>
-            <input type="text" id="source_dir" placeholder="e.g. /path/to/your/files">
-        </div>
-        
-        <div class="form-group">
-            <label for="multi_model_provider">Model provider:</label>
-            <select id="multi_model_provider" onchange="updateMultiModelsList()">
+            <label for="batch-model-provider">Model Provider</label>
+            <select id="batch-model-provider" name="batch-model-provider">
                 <option value="anthropic">Claude (Anthropic)</option>
                 <option value="openai">OpenAI</option>
                 <option value="deepseek">DeepSeek</option>
@@ -258,773 +238,799 @@
         </div>
         
         <div class="form-group">
-            <label for="multi_model_name">Model:</label>
-            <select id="multi_model_name">
-                <option value="claude-3-5-sonnet-20240620">claude-3-5-sonnet-20240620</option>
-                <option value="claude-3-opus-20240229">claude-3-opus-20240229</option>
-                <option value="claude-3-sonnet-20240229">claude-3-sonnet-20240229</option>
-                <option value="claude-3-haiku-20240307">claude-3-haiku-20240307</option>
-            </select>
+            <label for="batch-model-name">Model</label>
+            <select id="batch-model-name" name="batch-model-name"></select>
+        </div>
+        
+        <div id="batch-lmstudio-settings" style="display: none;">
+            <div class="form-group">
+                <label for="batch-base-url">LM Studio URL</label>
+                <input type="text" id="batch-base-url" name="batch-base-url" value="http://localhost:1234">
+            </div>
         </div>
         
         <div class="form-group">
-            <label for="multi_api_key">API key:</label>
-            <input type="password" id="multi_api_key" placeholder="Enter API key">
+            <label for="batch-api-key">API Key (Optional, will use env value if not provided)</label>
+            <input type="password" id="batch-api-key" name="batch-api-key" placeholder="Enter API key (optional)">
         </div>
         
         <div class="form-group">
-            <label for="multi_keywords">Keywords for all files (comma-separated):</label>
-            <input type="text" id="multi_keywords" placeholder="e.g. medicine, disease, treatment or AUTO for automatic generation">
+            <label for="max-concurrent">Maximum Concurrent Files</label>
+            <input type="number" id="max-concurrent" name="max-concurrent" value="3" min="1" max="10">
         </div>
         
-        <button class="collapsible">Advanced options <span class="expand-arrow">▼</span></button>
+        <button class="collapsible">Advanced Batch Options <span class="expand-arrow">▼</span></button>
         <div class="collapsible-content">
-            <div class="form-group checkbox-group">
-                <input type="checkbox" id="multi_add_reasoning" checked>
-                <label for="multi_add_reasoning">Add reasoning traces</label>
-            </div>
-            
-            <div class="form-group checkbox-group">
-                <input type="checkbox" id="multi_anonymize">
-                <label for="multi_anonymize">Anonymize sensitive data</label>
-            </div>
-            
-            <div class="form-group checkbox-group">
-                <input type="checkbox" id="multi_use_web_search">
-                <label for="multi_use_web_search">Use web search</label>
-            </div>
-            
-            <div class="form-group">
-                <label for="multi_max_workers">Number of threads:</label>
-                <input type="number" id="multi_max_workers" value="4" min="1" max="20">
-            </div>
-            
-            <div class="form-group">
-                <label for="multi_train_split">Train/valid ratio (0.8 = 80% train):</label>
-                <input type="number" id="multi_train_split" value="0.8" min="0.5" max="0.95" step="0.05">
-            </div>
-            
-            <div class="form-group multi-lmstudio-settings" style="display: none;">
-                <label for="multi_base_url">LM Studio URL:</label>
-                <input type="text" id="multi_base_url" value="http://localhost:1234" placeholder="http://localhost:1234">
+            <div class="advanced-options">
+                <div class="form-group">
+                    <label for="batch-max-chunks">Max Chunks per File (0 for unlimited)</label>
+                    <input type="number" id="batch-max-chunks" name="batch-max-chunks" value="0" min="0">
+                </div>
+                
+                <div class="form-group checkbox-group">
+                    <input type="checkbox" id="batch-anonymize" name="batch-anonymize">
+                    <label for="batch-anonymize">Anonymize Personal Information</label>
+                </div>
+                
+                <div class="form-group">
+                    <label for="batch-train-split">Train Split (0.0 - 1.0)</label>
+                    <input type="number" id="batch-train-split" name="batch-train-split" value="0.8" min="0" max="1" step="0.1">
+                </div>
+                
+                <div class="form-group checkbox-group">
+                    <input type="checkbox" id="batch-keyword-extraction" name="batch-keyword-extraction">
+                    <label for="batch-keyword-extraction">Extract Keywords</label>
+                </div>
+                
+                <div class="form-group">
+                    <label for="batch-chunk-size">Chunk Size (characters)</label>
+                    <input type="number" id="batch-chunk-size" name="batch-chunk-size" value="2000" min="100">
+                </div>
+                
+                <div class="form-group">
+                    <label for="batch-overlap-size">Chunk Overlap (characters)</label>
+                    <input type="number" id="batch-overlap-size" name="batch-overlap-size" value="200" min="0">
+                </div>
+                
+                <div class="form-group">
+                    <label for="batch-system-prompt">System Prompt (Optional)</label>
+                    <textarea id="batch-system-prompt" name="batch-system-prompt" rows="3" placeholder="Enter system prompt"></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="batch-user-prompt">User Prompt Template (Optional)</label>
+                    <textarea id="batch-user-prompt" name="batch-user-prompt" rows="3" placeholder="Enter user prompt template with {text} placeholder"></textarea>
+                </div>
             </div>
         </div>
         
-        <button id="convert_multiple">Convert Multiple Files</button>
+        <button id="batch-submit">Process Batch</button>
         
-        <div id="multi_progress_summary" class="status" style="display: none;">
-            Converting...
+        <div id="batch-status" class="status">
+            <h3>Batch Status: <span id="batch-status-text">Initializing...</span></h3>
+            <div class="progress-container">
+                <div id="batch-progress-bar" class="progress-bar">0%</div>
+            </div>
+            <div id="batch-files-progress">
+                <p>Processing file: <span id="current-file">-</span></p>
+                <p>Completed: <span id="completed-files">0</span> / <span id="total-files">0</span></p>
+            </div>
+            <div id="batch-download-container" style="display: none; margin-top: 15px;">
+                <button id="download-batch-zip">Download Batch ZIP</button>
+            </div>
         </div>
-        
-        <div id="multi_status" class="status"></div>
     </div>
     
-    <div class="jobs">
-        <h2>Completed Datasets</h2>
-        <table id="jobs_table">
-            <tr>
-                <th>Name</th>
-                <th>Train</th>
-                <th>Valid</th>
-                <th>Status</th>
-                <th>Actions</th>
-            </tr>
-            <!-- Dynamically added rows -->
-        </table>
-    </div>
-    
-    <style>
-        /* Add styles for modal overlay */
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.5);
-            z-index: 1000;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        .batch-modal {
-            position: relative;
-            background-color: white;
-            padding: 20px;
-            border-radius: 5px;
-            width: 80%;
-            max-height: 80%;
-            overflow-y: auto;
-        }
-        .close-modal {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background: none;
-            border: none;
-            font-size: 20px;
-            cursor: pointer;
-        }
-        .batch-indicator {
-            background-color: #9C27B0;
-            color: white;
-            padding: 3px 8px;
-            border-radius: 4px;
-            margin-left: 5px;
-        }
-        .batch-details-btn {
-            background: #9C27B0;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            padding: 3px 8px;
-            cursor: pointer;
-            margin-left: 5px;
-        }
-        .download-zip-btn {
-            background: #4CAF50;
-            color: white;
-            padding: 10px 15px;
-            text-decoration: none;
-            border-radius: 4px;
-            display: inline-block;
-            margin-top: 10px;
-        }
-    </style>
     <script>
-        // Generate unique client ID for WebSocket
-        const CLIENT_ID = 'client_' + Math.random().toString(36).substring(2, 15);
-        let socket;
-        
-        // WebSocket connection
-        function connectWebSocket() {
-            socket = new WebSocket(`ws://${window.location.host}/ws/${CLIENT_ID}`);
+        document.addEventListener('DOMContentLoaded', function() {
+            // Get elements
+            const fileUploadTab = document.querySelector('[data-tab="file-upload"]');
+            const articleProcessingTab = document.querySelector('[data-tab="article-processing"]');
+            const multiFilesTab = document.querySelector('[data-tab="multi-files"]');
             
-            socket.onopen = function(e) {
-                console.log("WebSocket connection established");
-                // Heartbeat to keep connection alive
-                setInterval(() => {
-                    if (socket.readyState === WebSocket.OPEN) {
-                        socket.send("ping");
-                    }
-                }, 30000);
-            };
-            
-            socket.onmessage = function(event) {
-                try {
-                    // Handle ping/pong messages
-                    if (event.data === "pong") {
-                        console.log("Received pong from server");
-                        return;
-                    }
-                    
-                    const data = JSON.parse(event.data);
-                    if (data.job_id) {
-                        updateProgressBar(data.job_id, data.percentage);
-                        if (data.completed) {
-                            loadJobs();
-                        }
-                    }
-                } catch (e) {
-                    console.error("Error parsing WebSocket message:", e);
-                }
-            };
-            
-            socket.onclose = function(event) {
-                console.log("WebSocket connection closed. Reconnecting...");
-                setTimeout(connectWebSocket, 2000);
-            };
-            
-            socket.onerror = function(error) {
-                console.error("WebSocket error:", error);
-            };
-        }
-        
-        // Update progress bar
-        function updateProgressBar(jobId, percentage) {
-            let progressBarId, progressContainerId;
-            
-            if (jobId.startsWith('article_')) {
-                progressBarId = 'article_progress-bar';
-                progressContainerId = 'article_progress-container';
-            } else if (jobId.startsWith('multi_')) {
-                // For batch processing, just update the summary text
-                const multiProgressSummary = document.getElementById('multi_progress_summary');
-                multiProgressSummary.style.display = 'block';
-                multiProgressSummary.innerHTML = `Converting: ${percentage}% complete`;
-                return;
-            } else {
-                progressBarId = 'progress-bar';
-                progressContainerId = 'progress-container';
-            }
-            
-            const progressBar = document.getElementById(progressBarId);
-            const progressContainer = document.getElementById(progressContainerId);
-            
-            if (progressBar && progressContainer) {
-                progressContainer.style.display = 'block';
-                progressBar.style.width = percentage + '%';
-                progressBar.innerHTML = percentage + '%';
-                
-                // Change color when complete
-                if (percentage >= 100) {
-                    progressBar.style.backgroundColor = '#2196F3';
-                }
-            }
-        }
-        
-        // Tab handling
-        document.querySelectorAll('.tab').forEach(tab => {
-            tab.addEventListener('click', function() {
-                // Remove active class from all tabs
-                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-                // Add active class to clicked tab
-                this.classList.add('active');
-                
-                // Hide all tab contents
-                document.querySelectorAll('.tab-content').forEach(content => {
-                    content.classList.remove('active');
-                });
-                
-                // Show content for selected tab
-                const tabId = this.getAttribute('data-tab');
-                document.getElementById(tabId).classList.add('active');
-            });
-        });
-        
-        // Collapsible sections
-        document.querySelectorAll('.collapsible').forEach(collapsible => {
-            collapsible.addEventListener('click', function() {
-                this.classList.toggle('active');
-                const content = this.nextElementSibling;
-                const arrow = this.querySelector('.expand-arrow');
-                
-                if (content.style.maxHeight) {
-                    content.style.maxHeight = null;
-                    arrow.textContent = '▼';
-                } else {
-                    content.style.maxHeight = content.scrollHeight + "px";
-                    arrow.textContent = '▲';
-                }
-            });
-        });
-        
-        // Update model list based on provider
-        function updateModelsList() {
-            const provider = document.getElementById('model_provider').value;
-            const modelSelect = document.getElementById('model_name');
-            const lmStudioSettings = document.querySelector('.lmstudio-settings');
-            
-            // Show/hide LM Studio settings
-            if (provider === 'lmstudio') {
-                lmStudioSettings.style.display = 'block';
-            } else {
-                lmStudioSettings.style.display = 'none';
-            }
-            
-            // Update model options
-            updateModelOptions(provider, modelSelect);
-        }
-        
-        function updateArticleModelsList() {
-            const provider = document.getElementById('article_model_provider').value;
-            const modelSelect = document.getElementById('article_model_name');
-            updateModelOptions(provider, modelSelect);
-        }
-        
-        function updateMultiModelsList() {
-            const provider = document.getElementById('multi_model_provider').value;
-            const modelSelect = document.getElementById('multi_model_name');
-            const lmStudioSettings = document.querySelector('.multi-lmstudio-settings');
-            
-            // Show/hide LM Studio settings
-            if (provider === 'lmstudio') {
-                lmStudioSettings.style.display = 'block';
-            } else {
-                lmStudioSettings.style.display = 'none';
-            }
-            
-            // Update model options
-            updateModelOptions(provider, modelSelect);
-        }
-        
-        function updateModelOptions(provider, selectElement) {
-            // Clear current options
-            selectElement.innerHTML = '';
-            
-            // Get models for selected provider
-            const availableModels = {
-                "anthropic": [
-                    "claude-3-5-sonnet-20240620",
-                    "claude-3-opus-20240229",
-                    "claude-3-sonnet-20240229",
-                    "claude-3-haiku-20240307"
-                ],
-                "openai": [
-                    "gpt-4o",
-                    "gpt-4-turbo",
-                    "gpt-4",
-                    "gpt-3.5-turbo"
-                ],
-                "deepseek": [
-                    "deepseek-reasoner",
-                    "deepseek-coder",
-                    "deepseek-chat"
-                ],
-                "qwen": [
-                    "qwen-max",
-                    "qwen-max-0428",
-                    "qwen-plus"
-                ],
-                "mistral": [
-                    "mistral-large-latest",
-                    "mistral-medium-latest",
-                    "mistral-small-latest"
-                ],
-                "lmstudio": [
-                    "local-model"
-                ]
-            };
-            
-            // Add model options
-            const models = availableModels[provider] || [];
-            models.forEach(model => {
-                const option = document.createElement('option');
-                option.value = model;
-                option.textContent = model;
-                selectElement.appendChild(option);
-            });
-        }
-        
-        // Parse keywords
-        function parseKeywords(inputValue) {
-            if (!inputValue) return null;
-            if (inputValue.trim().toUpperCase() === 'AUTO') {
-                return ['AUTO'];
-            }
-            return inputValue.split(',').map(k => k.trim()).filter(k => k);
-        }
-        
-        // Single file conversion form submission
-        document.getElementById('submit').addEventListener('click', async function() {
-            const fileInput = document.getElementById('file');
-            const datasetName = document.getElementById('dataset_name').value;
-            const conversionType = document.getElementById('conversion_type').value;
-            const modelProvider = document.getElementById('model_provider').value;
-            const modelName = document.getElementById('model_name').value;
-            const apiKey = document.getElementById('api_key').value;
-            const addReasoning = document.getElementById('add_reasoning').checked;
-            const anonymize = document.getElementById('anonymize').checked;
-            const useWebSearch = document.getElementById('use_web_search').checked;
-            const keywords = parseKeywords(document.getElementById('keywords').value);
-            const maxWorkers = document.getElementById('max_workers').value;
-            const trainSplit = document.getElementById('train_split').value;
-            const baseUrl = document.getElementById('base_url').value;
-            
-            if (!fileInput.files[0]) {
-                alert('Please select a file to convert!');
-                return;
-            }
-            
-            if (!datasetName) {
-                alert('Please enter a dataset name!');
-                return;
-            }
-            
-            // API key is not required if loaded from environment variables
-            // Uncomment this check if you want to enforce API key in the form
-            /*if (modelProvider !== 'lmstudio' && !apiKey && addReasoning) {
-                alert('Please enter an API key!');
-                return;
-            }*/
-            
-            const formData = new FormData();
-            formData.append('file', fileInput.files[0]);
-            formData.append('dataset_name', datasetName);
-            formData.append('conversion_type', conversionType);
-            formData.append('model_provider', modelProvider);
-            formData.append('model_name', modelName);
-            formData.append('add_reasoning', addReasoning);
-            formData.append('anonymize', anonymize);
-            formData.append('use_web_search', useWebSearch);
-            if (keywords) {
-                formData.append('keywords', JSON.stringify(keywords));
-            }
-            formData.append('api_key', apiKey);
-            formData.append('max_workers', maxWorkers);
-            formData.append('train_split', trainSplit);
-            if (modelProvider === 'lmstudio') {
-                formData.append('base_url', baseUrl);
-            }
-            formData.append('client_id', CLIENT_ID);
+            const fileUploadContent = document.getElementById('file-upload');
+            const articleProcessingContent = document.getElementById('article-processing');
+            const multiFilesContent = document.getElementById('multi-files');
             
             const statusDiv = document.getElementById('status');
-            statusDiv.style.display = 'block';
-            statusDiv.innerHTML = 'Conversion in progress, please wait...';
-            
-            // Show progress bar
-            const progressContainer = document.getElementById('progress-container');
+            const statusText = document.getElementById('status-text');
             const progressBar = document.getElementById('progress-bar');
-            progressContainer.style.display = 'block';
-            progressBar.style.width = '0%';
-            progressBar.innerHTML = '0%';
+            const downloadContainer = document.getElementById('download-container');
             
-            try {
-                const response = await fetch('/convert/', {
-                    method: 'POST',
-                    body: formData
-                });
+            const batchStatusDiv = document.getElementById('batch-status');
+            const batchStatusText = document.getElementById('batch-status-text');
+            const batchProgressBar = document.getElementById('batch-progress-bar');
+            const batchDownloadContainer = document.getElementById('batch-download-container');
+            
+            const articleResultDiv = document.getElementById('article-result');
+            const articleStatusText = document.getElementById('article-status-text');
+            const articleProgressBar = document.getElementById('article-progress-bar');
+            const articleOutput = document.getElementById('article-output');
+            const articleDownloadContainer = document.getElementById('article-download-container');
+            
+            const lmStudioSettings = document.getElementById('lmstudio-settings');
+            const batchLmStudioSettings = document.getElementById('batch-lmstudio-settings');
+            
+            let currentJobId = null;
+            let currentBatchJobId = null;
+            let currentArticleJobId = null;
+            let socket = null;
+            
+            // Tab navigation
+            function showTab(tabId) {
+                // Hide all tabs
+                fileUploadContent.classList.remove('active');
+                articleProcessingContent.classList.remove('active');
+                multiFilesContent.classList.remove('active');
                 
-                const result = await response.json();
+                fileUploadTab.classList.remove('active');
+                articleProcessingTab.classList.remove('active');
+                multiFilesTab.classList.remove('active');
                 
-                if (response.ok) {
-                    statusDiv.innerHTML = `
-                        Conversion started!<br>
-                        Job ID: ${result.job_id}<br>
-                        Output directory: ${result.output_dir}<br>
-                        Status will update automatically.
-                    `;
+                // Show selected tab
+                document.getElementById(tabId).classList.add('active');
+                document.querySelector(`[data-tab="${tabId}"]`).classList.add('active');
+            }
+            
+            fileUploadTab.addEventListener('click', () => showTab('file-upload'));
+            articleProcessingTab.addEventListener('click', () => showTab('article-processing'));
+            multiFilesTab.addEventListener('click', () => showTab('multi-files'));
+            
+            // Load jobs on startup
+            loadJobs();
+            
+            // Collapsible sections
+            document.querySelectorAll('.collapsible').forEach(function(collapsible) {
+                collapsible.addEventListener('click', function() {
+                    this.classList.toggle('active');
+                    const content = this.nextElementSibling;
+                    const arrow = this.querySelector('.expand-arrow');
                     
-                    // Add file to recently used
-                    addToRecentFiles(fileInput.files[0].name);
-                } else {
-                    statusDiv.innerHTML = `Error: ${result.detail || result.error || 'Unknown error'}`;
-                    // Hide progress bar on error
-                    progressContainer.style.display = 'none';
-                }
-            } catch (error) {
-                statusDiv.innerHTML = `Error: ${error.message}`;
-                // Hide progress bar on error
-                progressContainer.style.display = 'none';
-            }
-        });
-        
-        // Articles processing form submission
-        document.getElementById('process_articles').addEventListener('click', async function() {
-            const articleDir = document.getElementById('article_dir').value;
-            const datasetName = document.getElementById('article_dataset_name').value;
-            const modelProvider = document.getElementById('article_model_provider').value;
-            const modelName = document.getElementById('article_model_name').value;
-            const apiKey = document.getElementById('article_api_key').value;
-            const addReasoning = document.getElementById('article_add_reasoning').checked;
-            const anonymize = document.getElementById('article_anonymize').checked;
-            const useWebSearch = document.getElementById('article_use_web_search').checked;
-            const keywords = parseKeywords(document.getElementById('article_keywords').value);
-            const maxWorkers = document.getElementById('article_max_workers').value;
-            const trainSplit = document.getElementById('article_train_split').value;
-            
-            if (!articleDir) {
-                alert('Please enter the articles directory!');
-                return;
-            }
-            
-            if (!datasetName) {
-                alert('Please enter a dataset name!');
-                return;
-            }
-            
-            if (!apiKey) {
-                alert('Please enter an API key!');
-                return;
-            }
-            
-            const formData = new FormData();
-            formData.append('article_dir', articleDir);
-            formData.append('dataset_name', datasetName);
-            formData.append('model_provider', modelProvider);
-            formData.append('model_name', modelName);
-            formData.append('add_reasoning', addReasoning);
-            formData.append('anonymize', anonymize);
-            formData.append('use_web_search', useWebSearch);
-            if (keywords) {
-                formData.append('keywords', JSON.stringify(keywords));
-            }
-            formData.append('api_key', apiKey);
-            formData.append('max_workers', maxWorkers);
-            formData.append('train_split', trainSplit);
-            formData.append('client_id', CLIENT_ID);
-            
-            const statusDiv = document.getElementById('article_status');
-            statusDiv.style.display = 'block';
-            statusDiv.innerHTML = 'Processing articles, please wait...';
-            
-            // Show progress bar
-            const progressContainer = document.getElementById('article_progress-container');
-            const progressBar = document.getElementById('article_progress-bar');
-            progressContainer.style.display = 'block';
-            progressBar.style.width = '0%';
-            progressBar.innerHTML = '0%';
-            
-            try {
-                const response = await fetch('/process-articles/', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const result = await response.json();
-                
-                if (response.ok) {
-                    statusDiv.innerHTML = `
-                        Processing started!<br>
-                        Job ID: ${result.job_id}<br>
-                        Output directory: ${result.output_dir}<br>
-                        Status will update automatically.
-                    `;
-                } else {
-                    statusDiv.innerHTML = `Error: ${result.detail || result.error || 'Unknown error'}`;
-                    // Hide progress bar on error
-                    progressContainer.style.display = 'none';
-                }
-            } catch (error) {
-                statusDiv.innerHTML = `Error: ${error.message}`;
-                // Hide progress bar on error
-                progressContainer.style.display = 'none';
-            }
-        });
-        
-        // Batch processing form submission
-        document.getElementById('convert_multiple').addEventListener('click', async function() {
-            const sourceDir = document.getElementById('source_dir').value;
-            const conversionType = document.getElementById('multi_conversion_type').value;
-            const modelProvider = document.getElementById('multi_model_provider').value;
-            const modelName = document.getElementById('multi_model_name').value;
-            const apiKey = document.getElementById('multi_api_key').value;
-            const addReasoning = document.getElementById('multi_add_reasoning').checked;
-            const anonymize = document.getElementById('multi_anonymize').checked;
-            const useWebSearch = document.getElementById('multi_use_web_search').checked;
-            const keywords = parseKeywords(document.getElementById('multi_keywords').value);
-            const maxWorkers = document.getElementById('multi_max_workers').value;
-            const trainSplit = document.getElementById('multi_train_split').value;
-            const baseUrl = document.getElementById('multi_base_url').value;
-            
-            if (!sourceDir) {
-                alert('Please enter the source directory!');
-                return;
-            }
-            
-            // API key is not required if loaded from environment variables
-            // Uncomment this check if you want to enforce API key in the form
-            /*if (modelProvider !== 'lmstudio' && !apiKey && addReasoning) {
-                alert('Please enter an API key!');
-                return;
-            }*/
-            
-            const formData = new FormData();
-            formData.append('source_dir', sourceDir);
-            formData.append('conversion_type', conversionType);
-            formData.append('model_provider', modelProvider);
-            formData.append('model_name', modelName);
-            formData.append('add_reasoning', addReasoning);
-            formData.append('anonymize', anonymize);
-            formData.append('use_web_search', useWebSearch);
-            if (keywords) {
-                formData.append('keywords', JSON.stringify(keywords));
-            }
-            formData.append('api_key', apiKey);
-            formData.append('max_workers', maxWorkers);
-            formData.append('train_split', trainSplit);
-            if (modelProvider === 'lmstudio') {
-                formData.append('base_url', baseUrl);
-            }
-            formData.append('client_id', CLIENT_ID);
-            
-            const statusDiv = document.getElementById('multi_status');
-            const progressSummary = document.getElementById('multi_progress_summary');
-            statusDiv.style.display = 'block';
-            statusDiv.innerHTML = 'Starting batch conversion, please wait...';
-            progressSummary.style.display = 'block';
-            progressSummary.innerHTML = 'Preparing files...';
-            
-            try {
-                const response = await fetch('/convert-multiple/', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const result = await response.json();
-                
-                if (response.ok) {
-                    statusDiv.innerHTML = `
-                        Conversion started!<br>
-                        Number of files: ${result.file_count}<br>
-                        Status will update automatically.
-                    `;
-                } else {
-                    statusDiv.innerHTML = `Error: ${result.detail || result.error || 'Unknown error'}`;
-                    progressSummary.style.display = 'none';
-                }
-            } catch (error) {
-                statusDiv.innerHTML = `Error: ${error.message}`;
-                progressSummary.style.display = 'none';
-            }
-        });
-        
-        // Recently used files management
-        function addToRecentFiles(fileName) {
-            let recentFiles = JSON.parse(localStorage.getItem('recentFiles') || '[]');
-            
-            // Add new file to top of list
-            recentFiles.unshift(fileName);
-            
-            // Remove duplicates
-            recentFiles = [...new Set(recentFiles)];
-            
-            // Limit to 5 files
-            recentFiles = recentFiles.slice(0, 5);
-            
-            // Save to localStorage
-            localStorage.setItem('recentFiles', JSON.stringify(recentFiles));
-            
-            // Refresh display
-            displayRecentFiles();
-        }
-        
-        // Display recently used files
-        function displayRecentFiles() {
-            const recentFiles = JSON.parse(localStorage.getItem('recentFiles') || '[]');
-            const recentFilesDiv = document.getElementById('recent_files');
-            
-            recentFilesDiv.innerHTML = '';
-            
-            if (recentFiles.length === 0) {
-                recentFilesDiv.innerHTML = '<p>No recently used files.</p>';
-                return;
-            }
-            
-            recentFiles.forEach(file => {
-                const fileDiv = document.createElement('div');
-                fileDiv.className = 'file-option';
-                fileDiv.textContent = file;
-                fileDiv.addEventListener('click', function() {
-                    document.getElementById('dataset_name').value = file.replace('.json', '').replace('.jsonl', '');
-                });
-                recentFilesDiv.appendChild(fileDiv);
-            });
-        }
-        
-        // Function to show batch details
-        function showBatchDetails(batchName, subdirectories) {
-            // Create modal dialog
-            const modalOverlay = document.createElement('div');
-            modalOverlay.className = 'modal-overlay';
-            
-            const modal = document.createElement('div');
-            modal.className = 'batch-modal';
-            
-            let content = `<h2>Batch Dataset: ${batchName}</h2>`;
-            content += `<button id="closeModal" class="close-modal">×</button>`;
-            content += `<p>This batch contains ${subdirectories.length} datasets:</p>`;
-            
-            content += `<table style="width:100%;border-collapse:collapse;">
-                <tr>
-                    <th style="text-align:left;padding:8px;border-bottom:1px solid #ddd;">Dataset</th>
-                    <th style="text-align:left;padding:8px;border-bottom:1px solid #ddd;">Actions</th>
-                </tr>`;
-            
-            subdirectories.forEach(subdir => {
-                content += `<tr>
-                    <td style="padding:8px;border-bottom:1px solid #ddd;">${subdir}</td>
-                    <td style="padding:8px;border-bottom:1px solid #ddd;">
-                        <a href="/download/${batchName}/${subdir}/train">Train</a> |
-                        <a href="/download/${batchName}/${subdir}/valid">Valid</a> |
-                        <a href="/download-zip/${batchName}/${subdir}">ZIP</a>
-                    </td>
-                </tr>`;
-            });
-            
-            content += `</table>`;
-            content += `<div style="margin-top:20px;text-align:center;">
-                <a href="/download-zip/${batchName}" class="download-zip-btn">
-                    Download Entire Batch as ZIP
-                </a>
-            </div>`;
-            
-            modal.innerHTML = content;
-            modalOverlay.appendChild(modal);
-            document.body.appendChild(modalOverlay);
-            
-            // Close button handler
-            document.getElementById('closeModal').addEventListener('click', function() {
-                document.body.removeChild(modalOverlay);
-            });
-        }
-        
-        // Load jobs list
-        async function loadJobs() {
-            try {
-                const response = await fetch('/jobs');
-                const jobs = await response.json();
-                
-                const tableBody = document.getElementById('jobs_table');
-                // Preserve header
-                tableBody.innerHTML = `
-                    <tr>
-                        <th>Name</th>
-                        <th>Train</th>
-                        <th>Valid</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                    </tr>
-                `;
-                
-                jobs.forEach(job => {
-                    const row = document.createElement('tr');
-                    const statusBadge = job.completed 
-                        ? '<span style="background-color: #4CAF50; color: white; padding: 3px 8px; border-radius: 4px;">Complete</span>' 
-                        : '<span style="background-color: #2196F3; color: white; padding: 3px 8px; border-radius: 4px;">In Progress</span>';
-                    
-                    // Check if this is a batch dataset
-                    const isBatch = job.is_batch;
-                    const batchIndicator = isBatch 
-                        ? '<span class="batch-indicator">Batch</span>' 
-                        : '';
-                    
-                    const cellContent = isBatch 
-                        ? `${job.name}${batchIndicator} <button class="batch-details-btn">View Contents</button>` 
-                        : job.name;
-                        
-                    row.innerHTML = `
-                        <td>${cellContent}</td>
-                        <td>${job.train_count}</td>
-                        <td>${job.valid_count}</td>
-                        <td>${statusBadge}</td>
-                        <td>
-                            <a href="/download/${job.name}/train">Train</a> |
-                            <a href="/download/${job.name}/valid">Valid</a> |
-                            <a href="/download-zip/${job.name}">ZIP</a>
-                        </td>
-                    `;
-                    tableBody.appendChild(row);
-                    
-                    // Add event listener for batch details button
-                    if (isBatch) {
-                        const detailsBtn = row.querySelector('.batch-details-btn');
-                        detailsBtn.addEventListener('click', function() {
-                            showBatchDetails(job.name, job.subdirectories);
-                        });
+                    if (content.style.maxHeight) {
+                        content.style.maxHeight = null;
+                        arrow.textContent = '▼';
+                    } else {
+                        content.style.maxHeight = content.scrollHeight + 'px';
+                        arrow.textContent = '▲';
                     }
                 });
-            } catch (error) {
-                console.error('Error loading jobs:', error);
+            });
+            
+            // Model provider change handling
+            document.getElementById('model-provider').addEventListener('change', function() {
+                const provider = this.value;
+                const modelSelect = document.getElementById('model-name');
+                
+                // Show/hide LM Studio settings
+                if (provider === 'lmstudio') {
+                    lmStudioSettings.style.display = 'block';
+                } else {
+                    lmStudioSettings.style.display = 'none';
+                }
+                
+                // Update model options
+                updateModelOptions(provider, modelSelect);
+            });
+            
+            // Batch model provider change handling
+            document.getElementById('batch-model-provider').addEventListener('change', function() {
+                const provider = this.value;
+                const modelSelect = document.getElementById('batch-model-name');
+                
+                // Show/hide LM Studio settings
+                if (provider === 'lmstudio') {
+                    batchLmStudioSettings.style.display = 'block';
+                } else {
+                    batchLmStudioSettings.style.display = 'none';
+                }
+                
+                // Update model options
+                updateModelOptions(provider, modelSelect);
+            });
+            
+            // Set default provider if available from data attribute
+            const providerSelect = document.getElementById('model-provider');
+            const batchProviderSelect = document.getElementById('batch-model-provider');
+            
+            if (providerSelect.dataset.default) {
+                const defaultProvider = providerSelect.dataset.default;
+                providerSelect.value = defaultProvider;
+                batchProviderSelect.value = defaultProvider;
+                
+                // Show/hide LM Studio settings based on default
+                if (defaultProvider === 'lmstudio') {
+                    lmStudioSettings.style.display = 'block';
+                    batchLmStudioSettings.style.display = 'block';
+                }
             }
-        }
-        
-        // Initialization
-        document.addEventListener('DOMContentLoaded', function() {
-            // Establish WebSocket connection
-            connectWebSocket();
             
-            // Load jobs list and recently used files
-            loadJobs();
-            displayRecentFiles();
+            // Initialize model options
+            updateModelOptions(providerSelect.value, document.getElementById('model-name'));
+            updateModelOptions(batchProviderSelect.value, document.getElementById('batch-model-name'));
             
-            // Initialize model lists
-            updateModelsList();
-            updateArticleModelsList();
-            updateMultiModelsList();
+            function updateModelOptions(provider, selectElement) {
+                // Clear current options
+                selectElement.innerHTML = '';
+                
+                // Get models for selected provider
+                // This object will be dynamically replaced by the server when the page loads
+                const availableModels = {
+                    "anthropic": [
+                        "claude-3-5-sonnet-20240620",
+                        "claude-3-opus-20240229",
+                        "claude-3-sonnet-20240229",
+                        "claude-3-haiku-20240307"
+                    ],
+                    "openai": [
+                        "gpt-4o",
+                        "gpt-4-turbo",
+                        "gpt-4",
+                        "gpt-3.5-turbo"
+                    ],
+                    "deepseek": [
+                        "deepseek-reasoner",
+                        "deepseek-coder",
+                        "deepseek-chat"
+                    ],
+                    "qwen": [
+                        "qwen-max",
+                        "qwen-max-0428",
+                        "qwen-plus"
+                    ],
+                    "mistral": [
+                        "mistral-large-latest",
+                        "mistral-medium-latest",
+                        "mistral-small-latest"
+                    ],
+                    "lmstudio": [
+                        "local-model"
+                    ]
+                };
+                
+                // Add model options
+                const models = availableModels[provider] || [];
+                models.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model;
+                    option.textContent = model;
+                    selectElement.appendChild(option);
+                });
+            }
             
-            // Auto-refresh jobs list every 30 seconds
-            setInterval(loadJobs, 30000);
+            // Parse keywords
+            function parseKeywords(inputValue) {
+                if (!inputValue) return null;
+                if (inputValue.trim().toUpperCase() === 'AUTO') {
+                    return ['AUTO'];
+                }
+                return inputValue.split(',').map(k => k.trim()).filter(k => k);
+            }
+            
+            // Single file conversion form submission
+            document.getElementById('submit').addEventListener('click', async function() {
+                const fileInput = document.getElementById('file');
+                if (!fileInput.files.length) {
+                    alert('Please select a file to upload');
+                    return;
+                }
+                
+                // First upload the file
+                const formData = new FormData();
+                formData.append('file', fileInput.files[0]);
+                
+                try {
+                    statusDiv.style.display = 'block';
+                    statusText.textContent = 'Uploading file...';
+                    progressBar.style.width = '0%';
+                    progressBar.textContent = '0%';
+                    downloadContainer.style.display = 'none';
+                    
+                    const uploadResponse = await fetch('/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    if (!uploadResponse.ok) {
+                        const errorData = await uploadResponse.json();
+                        throw new Error(errorData.detail || 'Error uploading file');
+                    }
+                    
+                    const uploadData = await uploadResponse.json();
+                    const filePath = uploadData.file_path;
+                    
+                    // Now convert the file
+                    statusText.textContent = 'Starting conversion...';
+                    
+                    const conversionFormData = new FormData();
+                    conversionFormData.append('file_path', filePath);
+                    conversionFormData.append('conversion_type', document.getElementById('conversion-type').value);
+                    conversionFormData.append('model_provider', document.getElementById('model-provider').value);
+                    conversionFormData.append('model_name', document.getElementById('model-name').value);
+                    conversionFormData.append('max_chunks', document.getElementById('max-chunks').value);
+                    conversionFormData.append('anonymize', document.getElementById('anonymize').checked);
+                    conversionFormData.append('train_split', document.getElementById('train-split').value);
+                    conversionFormData.append('keyword_extraction', document.getElementById('keyword-extraction').checked);
+                    conversionFormData.append('chunk_size', document.getElementById('chunk-size').value);
+                    conversionFormData.append('overlap_size', document.getElementById('overlap-size').value);
+                    conversionFormData.append('api_key', document.getElementById('api-key').value);
+                    
+                    if (document.getElementById('model-provider').value === 'lmstudio') {
+                        conversionFormData.append('base_url', document.getElementById('base-url').value);
+                    }
+                    
+                    const systemPrompt = document.getElementById('system-prompt').value;
+                    if (systemPrompt) {
+                        conversionFormData.append('system_prompt', systemPrompt);
+                    }
+                    
+                    const userPrompt = document.getElementById('user-prompt').value;
+                    if (userPrompt) {
+                        conversionFormData.append('user_prompt', userPrompt);
+                    }
+                    
+                    const conversionResponse = await fetch('/convert', {
+                        method: 'POST',
+                        body: conversionFormData
+                    });
+                    
+                    if (!conversionResponse.ok) {
+                        const errorData = await conversionResponse.json();
+                        throw new Error(errorData.detail || 'Error starting conversion');
+                    }
+                    
+                    const conversionData = await conversionResponse.json();
+                    currentJobId = conversionData.job_id;
+                    
+                    // Connect to WebSocket for real-time updates
+                    connectWebSocket(currentJobId);
+                    
+                    // Start polling for progress
+                    pollProgress(currentJobId);
+                    
+                } catch (error) {
+                    statusText.textContent = `Error: ${error.message}`;
+                    console.error('Error:', error);
+                }
+            });
+            
+            // Batch processing form submission
+            document.getElementById('batch-submit').addEventListener('click', async function() {
+                const fileInput = document.getElementById('file-batch');
+                if (!fileInput.files.length) {
+                    alert('Please select files to upload');
+                    return;
+                }
+                
+                const files = Array.from(fileInput.files);
+                const uploadPromises = files.map(file => {
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    return fetch('/upload', {
+                        method: 'POST',
+                        body: formData
+                    }).then(response => {
+                        if (!response.ok) {
+                            throw new Error(`Error uploading ${file.name}`);
+                        }
+                        return response.json();
+                    });
+                });
+                
+                try {
+                    batchStatusDiv.style.display = 'block';
+                    batchStatusText.textContent = 'Uploading files...';
+                    batchProgressBar.style.width = '0%';
+                    batchProgressBar.textContent = '0%';
+                    batchDownloadContainer.style.display = 'none';
+                    document.getElementById('current-file').textContent = '-';
+                    document.getElementById('completed-files').textContent = '0';
+                    document.getElementById('total-files').textContent = files.length;
+                    
+                    const uploadResults = await Promise.all(uploadPromises);
+                    const filePaths = uploadResults.map(result => result.file_path);
+                    
+                    // Now start batch conversion
+                    batchStatusText.textContent = 'Starting batch conversion...';
+                    
+                    const batchFormData = new FormData();
+                    batchFormData.append('file_paths', JSON.stringify(filePaths));
+                    batchFormData.append('conversion_type', document.getElementById('batch-conversion-type').value);
+                    batchFormData.append('model_provider', document.getElementById('batch-model-provider').value);
+                    batchFormData.append('model_name', document.getElementById('batch-model-name').value);
+                    batchFormData.append('max_chunks', document.getElementById('batch-max-chunks').value);
+                    batchFormData.append('anonymize', document.getElementById('batch-anonymize').checked);
+                    batchFormData.append('train_split', document.getElementById('batch-train-split').value);
+                    batchFormData.append('keyword_extraction', document.getElementById('batch-keyword-extraction').checked);
+                    batchFormData.append('chunk_size', document.getElementById('batch-chunk-size').value);
+                    batchFormData.append('overlap_size', document.getElementById('batch-overlap-size').value);
+                    batchFormData.append('max_concurrent', document.getElementById('max-concurrent').value);
+                    batchFormData.append('api_key', document.getElementById('batch-api-key').value);
+                    
+                    if (document.getElementById('batch-model-provider').value === 'lmstudio') {
+                        batchFormData.append('base_url', document.getElementById('batch-base-url').value);
+                    }
+                    
+                    const systemPrompt = document.getElementById('batch-system-prompt').value;
+                    if (systemPrompt) {
+                        batchFormData.append('system_prompt', systemPrompt);
+                    }
+                    
+                    const userPrompt = document.getElementById('batch-user-prompt').value;
+                    if (userPrompt) {
+                        batchFormData.append('user_prompt', userPrompt);
+                    }
+                    
+                    const batchResponse = await fetch('/batch-convert', {
+                        method: 'POST',
+                        body: batchFormData
+                    });
+                    
+                    if (!batchResponse.ok) {
+                        const errorData = await batchResponse.json();
+                        throw new Error(errorData.detail || 'Error starting batch conversion');
+                    }
+                    
+                    const batchData = await batchResponse.json();
+                    currentBatchJobId = batchData.job_id;
+                    
+                    // Connect to WebSocket for real-time updates
+                    connectWebSocket(currentBatchJobId);
+                    
+                    // Start polling for progress
+                    pollBatchProgress(currentBatchJobId);
+                    
+                } catch (error) {
+                    batchStatusText.textContent = `Error: ${error.message}`;
+                    console.error('Error:', error);
+                }
+            });
+            
+            // Article processing form submission
+            document.getElementById('process-article').addEventListener('click', async function() {
+                const articleText = document.getElementById('article-text').value;
+                if (!articleText) {
+                    alert('Please enter article text');
+                    return;
+                }
+                
+                try {
+                    articleResultDiv.style.display = 'block';
+                    articleStatusText.textContent = 'Processing article...';
+                    articleProgressBar.style.width = '0%';
+                    articleProgressBar.textContent = '0%';
+                    articleOutput.textContent = '';
+                    articleDownloadContainer.style.display = 'none';
+                    
+                    // Create temp file with article content
+                    const tempFormData = new FormData();
+                    const articleBlob = new Blob([articleText], { type: 'text/plain' });
+                    const articleFile = new File([articleBlob], 'article.txt', { type: 'text/plain' });
+                    tempFormData.append('file', articleFile);
+                    
+                    const uploadResponse = await fetch('/upload', {
+                        method: 'POST',
+                        body: tempFormData
+                    });
+                    
+                    if (!uploadResponse.ok) {
+                        const errorData = await uploadResponse.json();
+                        throw new Error(errorData.detail || 'Error saving article text');
+                    }
+                    
+                    const uploadData = await uploadResponse.json();
+                    const filePath = uploadData.file_path;
+                    
+                    // Process article
+                    const [provider, model] = document.getElementById('article-model').value.split(':');
+                    const questionCount = document.getElementById('questions-count').value;
+                    
+                    const articleFormData = new FormData();
+                    articleFormData.append('file_path', filePath);
+                    articleFormData.append('conversion_type', 'articles');
+                    articleFormData.append('model_provider', provider);
+                    articleFormData.append('model_name', model);
+                    articleFormData.append('max_chunks', '0');
+                    articleFormData.append('anonymize', 'false');
+                    articleFormData.append('train_split', '0.8');
+                    articleFormData.append('keyword_extraction', 'true');
+                    articleFormData.append('chunk_size', '2000');
+                    articleFormData.append('overlap_size', '200');
+                    
+                    // Add article-specific options
+                    const additionalOptions = {
+                        questions_count: parseInt(questionCount)
+                    };
+                    articleFormData.append('additional_options_json', JSON.stringify(additionalOptions));
+                    
+                    const articleResponse = await fetch('/convert', {
+                        method: 'POST',
+                        body: articleFormData
+                    });
+                    
+                    if (!articleResponse.ok) {
+                        const errorData = await articleResponse.json();
+                        throw new Error(errorData.detail || 'Error processing article');
+                    }
+                    
+                    const articleData = await articleResponse.json();
+                    currentArticleJobId = articleData.job_id;
+                    
+                    // Connect to WebSocket for real-time updates
+                    connectWebSocket(currentArticleJobId);
+                    
+                    // Start polling for progress
+                    pollArticleProgress(currentArticleJobId);
+                    
+                } catch (error) {
+                    articleStatusText.textContent = `Error: ${error.message}`;
+                    console.error('Error:', error);
+                }
+            });
+            
+            // WebSocket connection
+            function connectWebSocket(jobId) {
+                // Close existing connection if any
+                if (socket && socket.readyState === WebSocket.OPEN) {
+                    socket.close();
+                }
+                
+                // Create new connection
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = `${protocol}//${window.location.host}/ws/${jobId}`;
+                socket = new WebSocket(wsUrl);
+                
+                socket.onopen = function() {
+                    console.log('WebSocket connected for job:', jobId);
+                };
+                
+                socket.onmessage = function(event) {
+                    const data = JSON.parse(event.data);
+                    updateProgress(jobId, data);
+                };
+                
+                socket.onerror = function(error) {
+                    console.error('WebSocket error:', error);
+                };
+                
+                socket.onclose = function() {
+                    console.log('WebSocket disconnected');
+                };
+            }
+            
+            // Poll progress of conversion
+            function pollProgress(jobId) {
+                fetch(`/progress/${jobId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        updateProgress(jobId, data);
+                        
+                        // Continue polling if not completed
+                        if (!data.completed && data.status !== 'error') {
+                            setTimeout(() => pollProgress(jobId), 2000);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error polling progress:', error);
+                        setTimeout(() => pollProgress(jobId), 5000);
+                    });
+            }
+            
+            // Poll progress of batch conversion
+            function pollBatchProgress(jobId) {
+                fetch(`/progress/${jobId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        updateBatchProgress(jobId, data);
+                        
+                        // Continue polling if not completed
+                        if (!data.completed && data.status !== 'error') {
+                            setTimeout(() => pollBatchProgress(jobId), 2000);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error polling batch progress:', error);
+                        setTimeout(() => pollBatchProgress(jobId), 5000);
+                    });
+            }
+            
+            // Poll progress of article processing
+            function pollArticleProgress(jobId) {
+                fetch(`/progress/${jobId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        updateArticleProgress(jobId, data);
+                        
+                        // Continue polling if not completed
+                        if (!data.completed && data.status !== 'error') {
+                            setTimeout(() => pollArticleProgress(jobId), 2000);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error polling article progress:', error);
+                        setTimeout(() => pollArticleProgress(jobId), 5000);
+                    });
+            }
+            
+            // Update progress for single file conversion
+            function updateProgress(jobId, data) {
+                if (jobId !== currentJobId) return;
+                
+                statusText.textContent = data.message || `Status: ${data.status}`;
+                progressBar.style.width = `${data.progress || 0}%`;
+                progressBar.textContent = `${data.progress || 0}%`;
+                
+                if (data.completed) {
+                    statusText.textContent = 'Conversion completed successfully!';
+                    downloadContainer.style.display = 'block';
+                    loadJobs(); // Refresh jobs list
+                } else if (data.status === 'error') {
+                    statusText.textContent = `Error: ${data.message}`;
+                }
+            }
+            
+            // Update progress for batch conversion
+            function updateBatchProgress(jobId, data) {
+                if (jobId !== currentBatchJobId) return;
+                
+                batchStatusText.textContent = data.message || `Status: ${data.status}`;
+                batchProgressBar.style.width = `${data.progress || 0}%`;
+                batchProgressBar.textContent = `${data.progress || 0}%`;
+                
+                if (data.current_file) {
+                    document.getElementById('current-file').textContent = data.current_file;
+                }
+                
+                if (data.completed_files !== undefined) {
+                    document.getElementById('completed-files').textContent = data.completed_files;
+                }
+                
+                if (data.total_files !== undefined) {
+                    document.getElementById('total-files').textContent = data.total_files;
+                }
+                
+                if (data.completed) {
+                    if (data.status === 'completed_with_errors') {
+                        batchStatusText.textContent = `Completed with ${data.failed_files} failed conversions.`;
+                    } else {
+                        batchStatusText.textContent = 'Batch processing completed successfully!';
+                    }
+                    batchDownloadContainer.style.display = 'block';
+                    loadJobs(); // Refresh jobs list
+                } else if (data.status === 'error') {
+                    batchStatusText.textContent = `Error: ${data.message}`;
+                }
+            }
+            
+            // Update progress for article processing
+            function updateArticleProgress(jobId, data) {
+                if (jobId !== currentArticleJobId) return;
+                
+                articleStatusText.textContent = data.message || `Status: ${data.status}`;
+                articleProgressBar.style.width = `${data.progress || 0}%`;
+                articleProgressBar.textContent = `${data.progress || 0}%`;
+                
+                if (data.completed) {
+                    articleStatusText.textContent = 'Article processing completed!';
+                    
+                    if (data.result && data.result.questions) {
+                        let output = 'Generated Q&A Pairs:\n\n';
+                        data.result.questions.forEach((qa, index) => {
+                            output += `Q${index+1}: ${qa.question}\n`;
+                            output += `A${index+1}: ${qa.answer}\n\n`;
+                        });
+                        articleOutput.textContent = output;
+                    }
+                    
+                    articleDownloadContainer.style.display = 'block';
+                    loadJobs(); // Refresh jobs list
+                } else if (data.status === 'error') {
+                    articleStatusText.textContent = `Error: ${data.message}`;
+                }
+            }
+            
+            // Download buttons
+            document.getElementById('download-jsonl').addEventListener('click', function() {
+                if (currentJobId) {
+                    window.location.href = `/download/${currentJobId}?format=jsonl`;
+                }
+            });
+            
+            document.getElementById('download-zip').addEventListener('click', function() {
+                if (currentJobId) {
+                    window.location.href = `/download/${currentJobId}?format=zip`;
+                }
+            });
+            
+            document.getElementById('download-batch-zip').addEventListener('click', function() {
+                if (currentBatchJobId) {
+                    window.location.href = `/download/${currentBatchJobId}?format=zip`;
+                }
+            });
+            
+            document.getElementById('download-article-jsonl').addEventListener('click', function() {
+                if (currentArticleJobId) {
+                    window.location.href = `/download/${currentArticleJobId}?format=jsonl`;
+                }
+            });
+            
+            // Load existing jobs
+            function loadJobs() {
+                fetch('/jobs')
+                    .then(response => response.json())
+                    .then(jobs => {
+                        const tableBody = document.getElementById('jobs-table-body');
+                        tableBody.innerHTML = '';
+                        
+                        if (jobs.length === 0) {
+                            const row = document.createElement('tr');
+                            row.innerHTML = '<td colspan="3">No datasets available</td>';
+                            tableBody.appendChild(row);
+                            return;
+                        }
+                        
+                        jobs.forEach(job => {
+                            const row = document.createElement('tr');
+                            
+                            let name = job.name;
+                            if (job.is_batch) {
+                                name = `${name} (Batch)`;
+                            }
+                            
+                            let filesInfo = '';
+                            if (job.completed) {
+                                filesInfo = `Train: ${job.train_count}, Valid: ${job.valid_count}`;
+                            } else {
+                                filesInfo = 'Processing...';
+                            }
+                            
+                            let actions = '';
+                            if (job.completed) {
+                                actions = `
+                                    <button onclick="window.location.href='/download/${job.name}?format=jsonl'">JSONL</button>
+                                    <button onclick="window.location.href='/download/${job.name}?format=zip'">ZIP</button>
+                                `;
+                            } else {
+                                actions = 'In progress...';
+                            }
+                            
+                            row.innerHTML = `
+                                <td>${name}</td>
+                                <td>${filesInfo}</td>
+                                <td>${actions}</td>
+                            `;
+                            
+                            tableBody.appendChild(row);
+                        });
+                    })
+                    .catch(error => console.error('Error loading jobs:', error));
+            }
+            
+            // Batch file selection display
+            const fileBatchInput = document.getElementById('file-batch');
+            const selectedFilesDiv = document.getElementById('selected-files');
+            
+            fileBatchInput.addEventListener('change', function() {
+                selectedFilesDiv.innerHTML = '';
+                
+                if (this.files.length > 0) {
+                    const fileList = document.createElement('ul');
+                    fileList.style.padding = '0';
+                    fileList.style.margin = '10px 0';
+                    fileList.style.listStyle = 'none';
+                    
+                    Array.from(this.files).forEach(file => {
+                        const listItem = document.createElement('li');
+                        listItem.textContent = file.name;
+                        listItem.style.padding = '5px 10px';
+                        listItem.style.margin = '2px 0';
+                        listItem.style.backgroundColor = '#f9f9f9';
+                        listItem.style.borderRadius = '3px';
+                        fileList.appendChild(listItem);
+                    });
+                    
+                    selectedFilesDiv.appendChild(fileList);
+                }
+            });
         });
     </script>
 </body>

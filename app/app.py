@@ -30,6 +30,7 @@ from utils import (
     generate_keywords_from_text, auto_generate_keywords,
     save_progress, get_progress, parallel_process, setup_logging
 )
+from utils.models import get_available_models, get_default_provider, get_provider_models_js
 
 # Load environment variables
 dotenv_path = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) / '.env'
@@ -101,57 +102,12 @@ PROGRESS_DIR = APP_DIR / "progress"
 for dir_path in [UPLOAD_DIR, OUTPUT_DIR, PROGRESS_DIR]:
     dir_path.mkdir(exist_ok=True)
 
-# Define available models
-AVAILABLE_MODELS = {
-    "anthropic": {
-        "name": "Claude (Anthropic)",
-        "models": [
-            "claude-3-5-sonnet-20240620",
-            "claude-3-opus-20240229",
-            "claude-3-sonnet-20240229",
-            "claude-3-haiku-20240307"
-        ]
-    },
-    "openai": {
-        "name": "OpenAI",
-        "models": [
-            "gpt-4o",
-            "gpt-4-turbo",
-            "gpt-4",
-            "gpt-3.5-turbo"
-        ]
-    },
-    "deepseek": {
-        "name": "DeepSeek",
-        "models": [
-            "deepseek-reasoner",
-            "deepseek-coder",
-            "deepseek-chat"
-        ]
-    },
-    "qwen": {
-        "name": "Qwen",
-        "models": [
-            "qwen-max",
-            "qwen-max-0428",
-            "qwen-plus"
-        ]
-    },
-    "mistral": {
-        "name": "Mistral AI",
-        "models": [
-            "mistral-large-latest",
-            "mistral-medium-latest",
-            "mistral-small-latest"
-        ]
-    },
-    "lmstudio": {
-        "name": "LM Studio (local)",
-        "models": [
-            "local-model"
-        ]
-    }
-}
+# Get available models based on API keys
+AVAILABLE_MODELS = get_available_models(filter_by_api_keys=True)
+
+# Log available models
+for provider, config in AVAILABLE_MODELS.items():
+    logger.info(f"Available provider: {provider} with {len(config['models'])} models")
 
 # Define script mappings
 SCRIPTS = {
@@ -186,717 +142,877 @@ async def convert_dataset(
     job_id: str,
     conversion_type: str,
     input_path: str,
-    output_dir: str,
-    model_provider: str = "anthropic",
-    model_name: str = None,
-    add_reasoning: bool = False,
-    api_key: str = None,
-    max_workers: int = 4,
-    train_split: float = 0.8,
-    base_url: str = None,
-    anonymize: bool = False,
-    keywords: List[str] = None,
-    use_web_search: bool = False,
-    client_id: str = None
+    model_provider: str,
+    model_name: str,
+    max_chunks: int,
+    anonymize: bool,
+    train_split: float,
+    keyword_extraction: bool,
+    chunk_size: int,
+    overlap_size: int,
+    api_key: Optional[str] = None,
+    base_url: Optional[str] = None,
+    system_prompt: Optional[str] = None,
+    user_prompt: Optional[str] = None,
+    additional_options: Optional[Dict[str, Any]] = None
 ):
     """
-    Main function for dataset conversion.
+    Main function to convert a file to a dataset.
+    
+    Args:
+        job_id (str): Unique identifier for this conversion job
+        conversion_type (str): Type of conversion to perform
+        input_path (str): Path to the input file
+        model_provider (str): Provider of the LLM (e.g., "anthropic", "openai")
+        model_name (str): Name of the model to use
+        max_chunks (int): Maximum number of chunks to process
+        anonymize (bool): Whether to anonymize personal information
+        train_split (float): Percentage of data to use for training (vs. validation)
+        keyword_extraction (bool): Whether to extract keywords
+        chunk_size (int): Size of text chunks in characters
+        overlap_size (int): Overlap between chunks in characters
+        api_key (str, optional): API key for the model provider
+        base_url (str, optional): Base URL for the API (for local models)
+        system_prompt (str, optional): System prompt for the LLM
+        user_prompt (str, optional): User prompt template for the LLM
+        additional_options (Dict[str, Any], optional): Additional options for the specific conversion
+                                                       Can include:
+                                                       - keywords: list of keywords to add to metadata
+                                                       - reasoning: bool to include reasoning in output
+                                                       - questions_count: int number of questions for articles mode
+    
+    Returns:
+        bool: True if conversion successful, False otherwise
     """
-    logger.info(
-        f"Starting dataset conversion. Job ID: {job_id}, "
-        f"Conversion Type: {conversion_type}, Provider: {model_provider}, "
-        f"Anonymize: {anonymize}, Add Reasoning: {add_reasoning}, "
-        f"Keywords: {keywords}, Use Web Search: {use_web_search}"
-    )
-
     try:
-        # Validate
-        if conversion_type not in SCRIPTS:
-            error_msg = f"Unknown conversion type: {conversion_type}"
+        # Initialize progress tracking
+        await save_progress(job_id, {"status": "started", "progress": 0, "message": "Starting conversion..."})
+        logger.info(f"Starting conversion job {job_id} with {conversion_type}")
+        
+        # Create output directory
+        output_dir = OUTPUT_DIR / job_id
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Create a client for the selected model
+        client = get_llm_client(model_provider, api_key, base_url)
+        
+        if not client:
+            error_msg = f"Failed to initialize {model_provider} client. Check API key."
             logger.error(error_msg)
-            save_progress(job_id, 1, 0, success=False, error=error_msg)
-            return {"error": error_msg}
+            await save_progress(job_id, {"status": "error", "message": error_msg})
+            return False
         
-        # LLM client if needed
-        llm_client = None
-        if add_reasoning or conversion_type in ["translate", "articles"]:
-            llm_client = get_llm_client(model_provider, api_key, base_url)
-        
-        # Optionally anonymize
-        if anonymize and os.path.isfile(input_path):
-            logger.debug("Anonymizing input data...")
-            try:
-                with open(input_path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                anonymized_content = anonymize_text(content, consistent=True)
-                anonymized_path = os.path.join(
-                    os.path.dirname(input_path), 
-                    f"anonymized_{os.path.basename(input_path)}"
-                )
-                with open(anonymized_path, 'w', encoding='utf-8') as f:
-                    f.write(anonymized_content)
-                input_path = anonymized_path
-                logger.info(f"Anonymized input file saved to {anonymized_path}")
-            except Exception as e:
-                logger.error(f"Error anonymizing file: {e}")
-        
-        # Start progress
-        save_progress(job_id, 100, 0, success=True)
-        
-        def progress_callback(progress, total):
-            save_progress(job_id, total, progress, success=True)
-            if client_id:
-                progress_data = get_progress(job_id)
-                asyncio.create_task(notify_client(client_id, progress_data))
-        
-        script_path = SCRIPTS[conversion_type]["path"]
-        module = import_script(script_path)
-        
-        logger.debug(f"Running script for {conversion_type} -> {script_path}")
-        # Depending on conversion type
-        if conversion_type == "standard":
-            result = module.process_dataset(
-                input_path=input_path,
-                output_dir=output_dir,
-                add_reasoning_flag=add_reasoning,
-                api_key=api_key,
-                model_provider=model_provider,
-                model_name=model_name,
-                max_workers=max_workers,
-                train_split=train_split,
-                keywords=keywords,
-                use_web_search=use_web_search,
-                progress_callback=progress_callback
+        # Prepare options
+        options = {
+            "job_id": job_id,
+            "input_path": input_path,
+            "output_dir": str(output_dir),
+            "client": client,
+            "model_name": model_name,
+            "max_chunks": max_chunks,
+            "anonymize": anonymize,
+            "train_split": train_split,
+            "keyword_extraction": keyword_extraction,
+            "chunk_size": chunk_size,
+            "overlap_size": overlap_size,
+            "system_prompt": system_prompt,
+            "user_prompt": user_prompt,
+            "progress_callback": lambda progress, total: save_progress(
+                job_id, 
+                {
+                    "status": "processing", 
+                    "progress": int((progress / total) * 100),
+                    "message": f"Processing part {progress}/{total}"
+                }
             )
-        # elif conversion_type == "dictionary":
-        #     result = module.process_dictionary(
-        #         input_path=input_path,
-        #         output_dir=output_dir,
-        #         add_reasoning_flag=add_reasoning,
-        #         api_key=api_key,
-        #         model_provider=model_provider,
-        #         model_name=model_name,
-        #         max_workers=max_workers,
-        #         train_split=train_split,
-        #         keywords=keywords,
-        #         progress_callback=progress_callback
-        #     )
-        # elif conversion_type == "translate":
-        #     result = module.process_dataset(
-        #         input_path=input_path,
-        #         output_dir=output_dir,
-        #         translate_model=model_provider,
-        #         reasoning_model=model_provider,
-        #         add_reasoning_flag=add_reasoning,
-        #         translate_api_key=api_key,
-        #         reasoning_api_key=api_key,
-        #         max_workers=max_workers,
-        #         train_split=train_split,
-        #         keywords=keywords,
-        #         progress_callback=progress_callback
-        #     )
-        elif conversion_type == "articles":
-            result = module.process_articles(
-                input_dir=input_path,
-                output_dir=output_dir,
-                qa_model=model_provider,
-                reasoning_model=model_provider,
-                add_reasoning_flag=add_reasoning,
-                qa_api_key=api_key,
-                reasoning_api_key=api_key,
-                max_workers=max_workers,
-                train_split=train_split,
-                keywords=keywords,
-                use_web_search=use_web_search,
-                anonymize=anonymize,
-                progress_callback=progress_callback
-            )
-        
-        # Check results
-        train_path = os.path.join(output_dir, "train.jsonl")
-        valid_path = os.path.join(output_dir, "valid.jsonl")
-        
-        train_count = sum(1 for _ in open(train_path, 'r')) if os.path.exists(train_path) else 0
-        valid_count = sum(1 for _ in open(valid_path, 'r')) if os.path.exists(valid_path) else 0
-        
-        # Complete
-        save_progress(job_id, 100, 100, success=True)
-        logger.info(
-            f"Conversion complete for Job ID: {job_id}. "
-            f"Train Records: {train_count}, Valid Records: {valid_count}"
-        )
-        
-        return {
-            "status": "success",
-            "train_count": train_count,
-            "valid_count": valid_count
         }
         
+        # Add any additional options
+        if additional_options:
+            # Handle keywords
+            if "keywords" in additional_options and additional_options["keywords"]:
+                # Store keywords in options
+                options["keywords"] = additional_options["keywords"]
+                logger.info(f"Using custom keywords: {options['keywords']}")
+            
+            # Handle reasoning flag
+            if "reasoning" in additional_options:
+                options["add_reasoning_flag"] = additional_options["reasoning"]
+                logger.info(f"Reasoning enabled: {options['add_reasoning_flag']}")
+            
+            # Add all other additional options
+            options.update(additional_options)
+        
+        # Import and run the appropriate script
+        if conversion_type in SCRIPTS:
+            script_path = SCRIPTS[conversion_type]["path"]
+            script = import_script(script_path)
+            
+            # Call the convert function from the script
+            result = await script.convert(**options)
+            
+            if result:
+                await save_progress(
+                    job_id, 
+                    {
+                        "status": "completed", 
+                        "progress": 100, 
+                        "message": "Conversion completed",
+                        "completed": True,
+                        "result": result
+                    }
+                )
+                logger.info(f"Conversion job {job_id} completed successfully")
+                return True
+            else:
+                await save_progress(
+                    job_id, 
+                    {
+                        "status": "error",
+                        "message": "Conversion failed in script"
+                    }
+                )
+                logger.error(f"Conversion job {job_id} failed in script")
+                return False
+        else:
+            error_msg = f"Unknown conversion type: {conversion_type}"
+            logger.error(error_msg)
+            await save_progress(job_id, {"status": "error", "message": error_msg})
+            return False
+            
     except Exception as e:
-        error_msg = (
-            f"Error during conversion for Job ID: {job_id} - {str(e)}\n"
-            f"{traceback.format_exc()}"
+        error_msg = f"Error in conversion process: {e}"
+        logger.error(error_msg)
+        logger.error(traceback.format_exc())
+        await save_progress(job_id, {"status": "error", "message": error_msg})
+        return False
+
+async def batch_convert_datasets(
+    job_id: str,
+    conversion_type: str,
+    file_paths: List[str],
+    model_provider: str,
+    model_name: str,
+    max_chunks: int,
+    anonymize: bool,
+    train_split: float,
+    keyword_extraction: bool,
+    chunk_size: int,
+    overlap_size: int,
+    max_concurrent: int,
+    api_key: Optional[str] = None,
+    base_url: Optional[str] = None,
+    system_prompt: Optional[str] = None,
+    user_prompt: Optional[str] = None,
+    additional_options: Optional[Dict[str, Any]] = None
+):
+    """
+    Process multiple files in batches.
+    
+    Args:
+        job_id (str): Base identifier for this batch job
+        conversion_type (str): Type of conversion to perform
+        file_paths (List[str]): List of paths to input files
+        model_provider (str): Provider of the LLM
+        model_name (str): Name of the model to use
+        max_chunks (int): Maximum number of chunks to process per file
+        anonymize (bool): Whether to anonymize personal information
+        train_split (float): Percentage of data to use for training
+        keyword_extraction (bool): Whether to extract keywords
+        chunk_size (int): Size of text chunks in characters
+        overlap_size (int): Overlap between chunks in characters
+        max_concurrent (int): Maximum number of concurrent file conversions
+        api_key (str, optional): API key for the model provider
+        base_url (str, optional): Base URL for the API
+        system_prompt (str, optional): System prompt for the LLM
+        user_prompt (str, optional): User prompt template for the LLM
+        additional_options (Dict, optional): Additional options
+    
+    Returns:
+        bool: True if all conversions successful, False otherwise
+    """
+    try:
+        # Create batch directory
+        batch_dir = OUTPUT_DIR / job_id
+        os.makedirs(batch_dir, exist_ok=True)
+        
+        # Initialize progress tracking
+        await save_progress(
+            job_id, 
+            {
+                "status": "started",
+                "progress": 0,
+                "message": f"Starting batch conversion of {len(file_paths)} files...",
+                "total_files": len(file_paths),
+                "completed_files": 0
+            }
         )
-        logger.error(error_msg, exc_info=True)
-        save_progress(job_id, 100, 0, success=False, error=error_msg)
-        return {"error": error_msg}
+        
+        # Initialize semaphore for limiting concurrent tasks
+        semaphore = asyncio.Semaphore(max_concurrent)
+        
+        async def process_file(file_path, file_idx):
+            file_id = f"{job_id}_{file_idx}"
+            file_name = os.path.basename(file_path)
+            
+            async with semaphore:
+                logger.info(f"Processing file {file_idx+1}/{len(file_paths)}: {file_name}")
+                
+                # Update overall batch progress
+                await save_progress(
+                    job_id,
+                    {
+                        "status": "processing",
+                        "message": f"Processing file {file_idx+1}/{len(file_paths)}: {file_name}",
+                        "current_file": file_name,
+                        "current_file_idx": file_idx+1
+                    }
+                )
+                
+                # Process the file
+                success = await convert_dataset(
+                    job_id=file_id,
+                    conversion_type=conversion_type,
+                    input_path=file_path,
+                    model_provider=model_provider,
+                    model_name=model_name,
+                    max_chunks=max_chunks,
+                    anonymize=anonymize,
+                    train_split=train_split,
+                    keyword_extraction=keyword_extraction,
+                    chunk_size=chunk_size,
+                    overlap_size=overlap_size,
+                    api_key=api_key,
+                    base_url=base_url,
+                    system_prompt=system_prompt,
+                    user_prompt=user_prompt,
+                    additional_options=additional_options
+                )
+                
+                # Update batch progress
+                completed = await get_progress(job_id)
+                completed_files = completed.get("completed_files", 0) + 1
+                
+                await save_progress(
+                    job_id,
+                    {
+                        "status": "processing",
+                        "progress": int((completed_files / len(file_paths)) * 100),
+                        "message": f"Completed {completed_files}/{len(file_paths)} files",
+                        "completed_files": completed_files
+                    }
+                )
+                
+                return success
+        
+        # Create tasks for all files
+        tasks = [process_file(file_path, i) for i, file_path in enumerate(file_paths)]
+        
+        # Wait for all tasks to complete
+        results = await asyncio.gather(*tasks)
+        
+        # Check if all conversions were successful
+        all_success = all(results)
+        
+        if all_success:
+            await save_progress(
+                job_id,
+                {
+                    "status": "completed",
+                    "progress": 100,
+                    "message": f"All {len(file_paths)} files processed successfully",
+                    "completed": True,
+                    "total_files": len(file_paths),
+                    "completed_files": len(file_paths)
+                }
+            )
+            logger.info(f"Batch job {job_id} completed successfully")
+        else:
+            failed_count = len(results) - sum(results)
+            await save_progress(
+                job_id,
+                {
+                    "status": "completed_with_errors",
+                    "progress": 100,
+                    "message": f"Completed with {failed_count} failed conversions",
+                    "completed": True,
+                    "total_files": len(file_paths),
+                    "completed_files": len(file_paths) - failed_count,
+                    "failed_files": failed_count
+                }
+            )
+            logger.warning(f"Batch job {job_id} completed with {failed_count} failures")
+        
+        return all_success
+        
+    except Exception as e:
+        error_msg = f"Error in batch conversion: {e}"
+        logger.error(error_msg)
+        logger.error(traceback.format_exc())
+        await save_progress(job_id, {"status": "error", "message": error_msg})
+        return False
 
-async def notify_client(client_id, data):
-    """Sends progress updates to client via WebSocket."""
-    await manager.send_progress(client_id, data)
+# Route for the homepage
+@app.get("/", response_class=HTMLResponse)
+async def get_home():
+    """Return the homepage HTML."""
+    with open(APP_DIR / "templates" / "index.html") as file:
+        # Inject dynamic model data
+        content = file.read()
+        model_js_code = get_provider_models_js()
+        
+        # Replace the hardcoded model options with dynamic ones
+        content = content.replace(
+            "const availableModels = {",
+            model_js_code
+        )
+        
+        # Inject default provider and model
+        default_provider = get_default_provider()
+        default_model = "gpt-4o" if default_provider == "openai" else "claude-3-opus-20240229"
+        
+        content = content.replace(
+            'id="model-provider"',
+            f'id="model-provider" data-default="{default_provider}"'
+        )
+        
+        return content
 
+# Route for the new process file interface
+@app.get("/process", response_class=HTMLResponse)
+async def get_process_page():
+    """Return the process file HTML interface."""
+    try:
+        with open(APP_DIR / "templates" / "process_file.html") as file:
+            # Inject dynamic model data
+            content = file.read()
+            model_js_code = get_provider_models_js()
+            
+            # Replace the hardcoded model options with dynamic ones
+            content = content.replace(
+                "const availableModels = {",
+                model_js_code
+            )
+            
+            # Inject default provider
+            default_provider = get_default_provider()
+            
+            # Set default provider in dropdown
+            content = content.replace(
+                '<select id="model-provider">',
+                f'<select id="model-provider" data-default="{default_provider}">'
+            )
+            
+            return content
+    except Exception as e:
+        logger.error(f"Error loading process file template: {e}")
+        return HTMLResponse(content="<html><body><h1>Error loading template</h1></body></html>", status_code=500)
+
+# WebSocket endpoint for progress updates
 @app.websocket("/ws/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str):
     await manager.connect(websocket, client_id)
     try:
         while True:
-            data = await websocket.receive_text()
-            if data == "ping":
-                await websocket.send_text("pong")
+            # Keep connection open
+            await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(client_id)
 
-@app.get("/", response_class=HTMLResponse)
-async def get_index():
-    template_path = APP_DIR / "templates" / "index.html"
-    with open(template_path, "r", encoding="utf-8") as f:
-        html_content = f.read()
-    return html_content
-
-# Conversion endpoint for single file
-@app.post("/convert/")
-async def convert_dataset_endpoint(
-    background_tasks: BackgroundTasks,
-    file: UploadFile = File(...),
-    dataset_name: str = Form(...),
-    conversion_type: str = Form(...),
-    model_provider: str = Form("anthropic"),
-    model_name: str = Form(None),
-    add_reasoning: bool = Form(True),
-    anonymize: bool = Form(False),
-    use_web_search: bool = Form(False),
-    keywords: Optional[str] = Form(None),
-    api_key: Optional[str] = Form(None),
-    max_workers: int = Form(4),
-    train_split: float = Form(0.8),
-    base_url: Optional[str] = Form("http://localhost:1234"),
-    client_id: Optional[str] = Form(None)
-):
-    """Endpoint for converting a single file (supports various formats: TXT, MD, CSV, TSV, JSON, JSONL, YAML, PDF, DOCX)."""
-    logger.info(f"/convert/ called for dataset: {dataset_name}, conversion_type: {conversion_type}")
+# File upload endpoint
+@app.post("/upload")
+async def upload_file(file: UploadFile = File(...)):
+    """
+    Upload a file to the server.
+    
+    Args:
+        file (UploadFile): The file to upload
+        
+    Returns:
+        dict: Response with the file path
+    """
     try:
-        # 1) Zapisujemy plik do tymczasowego katalogu
-        temp_dir = tempfile.mkdtemp(dir=UPLOAD_DIR)
-        original_path = os.path.join(temp_dir, file.filename)
-
-        with open(original_path, "wb") as buffer:
+        # Generate a unique filename using a timestamp and random string
+        timestamp = int(os.path.getmtime(file.file._file.name)) if hasattr(file.file, '_file') else int(time.time())
+        random_str = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz', k=6))
+        original_filename = file.filename
+        safe_filename = ''.join(c if c.isalnum() or c in '._- ' else '_' for c in original_filename)
+        
+        # Create filename with timestamp and random string to avoid collisions
+        filename = f"{timestamp}_{random_str}_{safe_filename}"
+        file_path = os.path.join(UPLOAD_DIR, filename)
+        
+        logger.info(f"Saving uploaded file to {file_path}")
+        
+        # Save the file
+        with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
+        
+        # Return the local file path for further processing
+        return {"filename": original_filename, "file_path": file_path}
+    
+    except Exception as e:
+        logger.error(f"Error uploading file: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Error uploading file: {str(e)}"}
+        )
 
-        # 2) Parsujemy do listy (instruction, input, output)
-        try:
-            parsed_records = parse_file(original_path, logger)
-        except Exception as e:
-            logger.error(f"Error parsing file {original_path}: {e}")
-            return JSONResponse({"error": f"Parsing error: {e}"}, status_code=400)
-
-        # 3) Zapisujemy tę listę do nowego pliku JSON
-        #    (to zachować oryginalny workflow w convert_dataset)
-        parsed_json_path = os.path.join(temp_dir, f"parsed_{file.filename}.json")
-        with open(parsed_json_path, 'w', encoding='utf-8') as pf:
-            json.dump(parsed_records, pf, ensure_ascii=False, indent=2)
-
-        # 4) Output directory
-        output_dir = os.path.join(OUTPUT_DIR, dataset_name)
-
-        # 5) Parsujemy keywords
-        parsed_keywords = None
-        if keywords:
+# File conversion endpoint
+@app.post("/convert")
+async def convert_file(
+    background_tasks: BackgroundTasks,
+    file_path: str = Form(...),
+    conversion_type: str = Form(...),
+    model_provider: str = Form(...),
+    model_name: str = Form(...),
+    max_chunks: int = Form(0),
+    anonymize: bool = Form(False),
+    train_split: float = Form(0.8),
+    keyword_extraction: bool = Form(False),
+    chunk_size: int = Form(2000),
+    overlap_size: int = Form(200),
+    api_key: Optional[str] = Form(None),
+    base_url: Optional[str] = Form(None),
+    system_prompt: Optional[str] = Form(None),
+    user_prompt: Optional[str] = Form(None),
+    additional_options_json: Optional[str] = Form(None)
+):
+    """
+    Convert a file to a dataset.
+    
+    Args:
+        background_tasks (BackgroundTasks): FastAPI background tasks
+        file_path (str): Path to the file to convert
+        conversion_type (str): Type of conversion to perform
+        model_provider (str): Provider of the LLM
+        model_name (str): Name of the model to use
+        max_chunks (int): Maximum number of chunks to process
+        anonymize (bool): Whether to anonymize personal information
+        train_split (float): Percentage of data to use for training
+        keyword_extraction (bool): Whether to extract keywords
+        chunk_size (int): Size of text chunks in characters
+        overlap_size (int): Overlap between chunks in characters
+        api_key (str, optional): API key for the model provider
+        base_url (str, optional): Base URL for the API
+        system_prompt (str, optional): System prompt for the LLM
+        user_prompt (str, optional): User prompt template for the LLM
+        additional_options_json (str, optional): JSON string with additional options
+        
+    Returns:
+        dict: Response with job ID
+    """
+    try:
+        # Generate a unique job ID
+        job_id = f"job_{int(time.time())}_{random.randint(1000, 9999)}"
+        
+        # Parse additional options if provided
+        additional_options = None
+        if additional_options_json:
             try:
-                parsed_keywords = json.loads(keywords)
+                additional_options = json.loads(additional_options_json)
             except json.JSONDecodeError:
-                parsed_keywords = [k.strip() for k in keywords.split(',') if k.strip()]
-
-        # 6) Inicjalizacja progress
-        save_progress(dataset_name, 100, 0, success=True)
-
-        # 7) Uruchamiamy konwersję w tle (używamy parsed_json_path)
+                return JSONResponse(
+                    status_code=400,
+                    content={"detail": "Invalid JSON in additional_options"}
+                )
+        
+        # Initialize progress
+        await save_progress(job_id, {"status": "initializing", "progress": 0})
+        
+        # Start conversion in background
         background_tasks.add_task(
             convert_dataset,
-            job_id=dataset_name,
+            job_id=job_id,
             conversion_type=conversion_type,
-            input_path=parsed_json_path,
-            output_dir=output_dir,
+            input_path=file_path,
             model_provider=model_provider,
             model_name=model_name,
-            add_reasoning=add_reasoning,
-            api_key=api_key,
-            max_workers=max_workers,
-            train_split=train_split,
-            base_url=base_url,
-            anonymize=anonymize,  # w razie czego zanonimizuje w convert_dataset
-            keywords=parsed_keywords,
-            use_web_search=use_web_search,
-            client_id=client_id
-        )
-
-        return JSONResponse({
-            "status": "Processing started",
-            "job_id": dataset_name,
-            "output_dir": output_dir
-        })
-    except Exception as e:
-        logger.error(f"Error in /convert/ endpoint: {str(e)}", exc_info=True)
-        return JSONResponse({"error": str(e)}, status_code=500)
-
-# Endpoint for processing a directory of articles
-@app.post("/process-articles/")
-async def process_articles_endpoint(
-    background_tasks: BackgroundTasks,
-    article_dir: str = Form(...),
-    dataset_name: str = Form(...),
-    model_provider: str = Form("anthropic"),
-    model_name: str = Form(None),
-    add_reasoning: bool = Form(True),
-    anonymize: bool = Form(False),
-    use_web_search: bool = Form(False),
-    keywords: Optional[str] = Form(None),
-    api_key: str = Form(...),
-    max_workers: int = Form(4),
-    train_split: float = Form(0.8),
-    client_id: Optional[str] = Form(None)
-):
-    """
-    Endpoint for processing a directory of articles (zwykle .txt).
-    Pozostaje bez zmian, bo oryginalny skrypt articles.py zakłada,
-    że input to folder i sam przetwarza .txt w process_articles().
-    """
-    logger.info(f"/process-articles/ called for dataset: {dataset_name}, directory: {article_dir}")
-    try:
-        if not os.path.exists(article_dir):
-            err_msg = f"Directory {article_dir} does not exist"
-            logger.error(err_msg)
-            return JSONResponse({"error": err_msg}, status_code=404)
-        
-        output_dir = os.path.join(OUTPUT_DIR, dataset_name)
-        
-        parsed_keywords = None
-        if keywords:
-            try:
-                parsed_keywords = json.loads(keywords)
-            except json.JSONDecodeError:
-                parsed_keywords = [k.strip() for k in keywords.split(',') if k.strip()]
-
-        job_id = f"article_{dataset_name}"
-        save_progress(job_id, 100, 0, success=True)
-        
-        # For articles, we'll use the process_articles function directly with consistent anonymization
-        
-        background_tasks.add_task(
-            process_articles,
-            input_dir=article_dir,
-            output_dir=output_dir,
-            qa_model=model_provider,
-            reasoning_model=model_provider,
-            add_reasoning_flag=add_reasoning,
-            qa_api_key=api_key,
-            reasoning_api_key=api_key,
-            max_workers=max_workers,
-            train_split=train_split,
-            keywords=parsed_keywords,
-            use_web_search=use_web_search,
+            max_chunks=max_chunks,
             anonymize=anonymize,
-            progress_callback=lambda progress, total: save_progress(job_id, total, progress, success=True) if client_id else None,
-            consistent_anonymization=True
+            train_split=train_split,
+            keyword_extraction=keyword_extraction,
+            chunk_size=chunk_size,
+            overlap_size=overlap_size,
+            api_key=api_key,
+            base_url=base_url,
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            additional_options=additional_options
         )
         
-        return JSONResponse({
-            "status": "Processing started",
-            "job_id": job_id,
-            "output_dir": output_dir
-        })
+        return {"job_id": job_id}
+    
     except Exception as e:
-        logger.error(f"Error in /process-articles/ endpoint: {str(e)}", exc_info=True)
-        return JSONResponse({"error": str(e)}, status_code=500)
+        logger.error(f"Error starting conversion: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Error starting conversion: {str(e)}"}
+        )
 
-# Endpoint for batch conversion of multiple files
-@app.post("/convert-multiple/")
-async def convert_multiple_endpoint(
+# Batch conversion endpoint
+@app.post("/batch-convert")
+async def batch_convert(
     background_tasks: BackgroundTasks,
-    source_dir: str = Form(...),
+    file_paths: List[str] = Form(...),
     conversion_type: str = Form(...),
-    model_provider: str = Form("anthropic"),
-    model_name: str = Form(None),
-    add_reasoning: bool = Form(True),
+    model_provider: str = Form(...),
+    model_name: str = Form(...),
+    max_chunks: int = Form(0),
     anonymize: bool = Form(False),
-    use_web_search: bool = Form(False),
-    keywords: Optional[str] = Form(None),
-    api_key: Optional[str] = Form(None),
-    max_workers: int = Form(4),
     train_split: float = Form(0.8),
-    base_url: Optional[str] = Form("http://localhost:1234"),
-    client_id: Optional[str] = Form(None)
+    keyword_extraction: bool = Form(False),
+    chunk_size: int = Form(2000),
+    overlap_size: int = Form(200),
+    max_concurrent: int = Form(3),
+    api_key: Optional[str] = Form(None),
+    base_url: Optional[str] = Form(None),
+    system_prompt: Optional[str] = Form(None),
+    user_prompt: Optional[str] = Form(None),
+    additional_options_json: Optional[str] = Form(None)
 ):
     """
-    Endpoint for batch processing multiple files.
-    Supports various formats: TXT, MD, CSV, TSV, JSON, JSONL, YAML, PDF, DOCX.
-    Parsujemy każdy z nich i zapisujemy do pliku .json,
-    który przekazujemy do convert_dataset.
+    Convert multiple files in batch.
+    
+    Args:
+        background_tasks (BackgroundTasks): FastAPI background tasks
+        file_paths (List[str]): Paths to the files to convert
+        conversion_type (str): Type of conversion to perform
+        model_provider (str): Provider of the LLM
+        model_name (str): Name of the model to use
+        max_chunks (int): Maximum number of chunks to process per file
+        anonymize (bool): Whether to anonymize personal information
+        train_split (float): Percentage of data to use for training
+        keyword_extraction (bool): Whether to extract keywords
+        chunk_size (int): Size of text chunks in characters
+        overlap_size (int): Overlap between chunks in characters
+        max_concurrent (int): Maximum number of concurrent file conversions
+        api_key (str, optional): API key for the model provider
+        base_url (str, optional): Base URL for the API
+        system_prompt (str, optional): System prompt for the LLM
+        user_prompt (str, optional): User prompt template for the LLM
+        additional_options_json (str, optional): JSON string with additional options
+        
+    Returns:
+        dict: Response with batch job ID
     """
-    logger.info(f"/convert-multiple/ called for directory: {source_dir}, conversion_type: {conversion_type}")
     try:
-        if not os.path.exists(source_dir):
-            err_msg = f"Directory {source_dir} does not exist"
-            logger.error(err_msg)
-            return JSONResponse({"error": err_msg}, status_code=404)
+        # Generate a unique batch job ID
+        job_id = f"batch_{int(time.time())}_{random.randint(1000, 9999)}"
         
-        # Find all supported file formats
-        files = []
-        for fname in os.listdir(source_dir):
-            ext = os.path.splitext(fname)[1].lower()
-            if ext in (".json", ".jsonl", ".txt", ".md", ".csv", ".tsv", ".yaml", ".yml", ".pdf", ".docx"):
-                files.append(os.path.join(source_dir, fname))
-        
-        if not files:
-            err_msg = "No supported files found in the directory. Supported formats: JSON, JSONL, TXT, MD, CSV, TSV, YAML, PDF, DOCX"
-            logger.error(err_msg)
-            return JSONResponse({"error": err_msg}, status_code=404)
-        
-        # parse keywords
-        parsed_keywords = None
-        if keywords:
+        # Ensure file_paths is a list
+        if isinstance(file_paths, str):
             try:
-                parsed_keywords = json.loads(keywords)
+                file_paths = json.loads(file_paths)
             except json.JSONDecodeError:
-                parsed_keywords = [k.strip() for k in keywords.split(',') if k.strip()]
-
-        # Create unique batch folder name with timestamp and optional tag
-        from datetime import datetime
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-        batch_tag = os.path.basename(source_dir).replace(' ', '_')
-        batch_folder_name = f"batch_{timestamp}_{batch_tag}"
-        batch_folder_path = os.path.join(OUTPUT_DIR, batch_folder_name)
-        os.makedirs(batch_folder_path, exist_ok=True)
+                return JSONResponse(
+                    status_code=400,
+                    content={"detail": "Invalid JSON in file_paths"}
+                )
         
-        multi_job_id = f"multi_{batch_folder_name}"
-        save_progress(multi_job_id, len(files), 0, success=True)
-        
-        job_ids = []
-        all_file_contents = []
-        file_paths = []
-        dataset_names = []
-        output_dirs = []
-        
-        # First, collect all file contents if anonymization is requested
-        batch_anonymization_needed = anonymize
-        
-        if batch_anonymization_needed:
-            for fpath in files:
-                try:
-                    with open(fpath, 'r', encoding='utf-8') as f:
-                        file_content = f.read()
-                        all_file_contents.append(file_content)
-                        file_paths.append(fpath)
-                except Exception as e:
-                    logger.error(f"[BATCH] Error reading file {fpath}: {e}")
-                    continue
-            
-            # Apply batch anonymization with consistent replacements across files
-            if all_file_contents:
-                logger.info(f"[BATCH] Applying consistent anonymization across {len(all_file_contents)} files")
-                anonymized_contents = batch_anonymize_text(all_file_contents, consistent_across_texts=True)
-                
-                # Save anonymized files to temporary locations
-                for i, (content, fpath) in enumerate(zip(anonymized_contents, file_paths)):
-                    file_name = os.path.basename(fpath)
-                    anon_dir = tempfile.mkdtemp(dir=UPLOAD_DIR)
-                    anon_path = os.path.join(anon_dir, f"batch_anonymized_{file_name}")
-                    with open(anon_path, 'w', encoding='utf-8') as f:
-                        f.write(content)
-                    # Replace original path with anonymized path
-                    file_paths[i] = anon_path
-        else:
-            # If no anonymization, just use original files
-            file_paths = files
-        
-        # Process each file
-        for fpath in file_paths:
-            file_name = os.path.basename(fpath)
-            # Remove 'batch_anonymized_' prefix if present
-            clean_name = file_name.replace('batch_anonymized_', '')
-            dataset_name = clean_name.replace('.json', '').replace('.jsonl', '').replace('.txt', '')
-            
-            # Put output in subfolder of the batch folder
-            output_dir = os.path.join(batch_folder_path, dataset_name)
-
-            # Parse file to list
+        # Parse additional options if provided
+        additional_options = None
+        if additional_options_json:
             try:
-                parsed_list = parse_file(fpath, logger)
-            except Exception as e:
-                logger.error(f"[BATCH] Parsing error for {fpath}: {e}")
-                continue
-            
-            # Save to temporary directory
-            tmp_dir = tempfile.mkdtemp(dir=UPLOAD_DIR)
-            parsed_json_path = os.path.join(tmp_dir, f"parsed_{clean_name}.json")
-            with open(parsed_json_path, 'w', encoding='utf-8') as pf:
-                json.dump(parsed_list, pf, ensure_ascii=False, indent=2)
-
-            # Initialize progress for that file
-            save_progress(dataset_name, 100, 0, success=True)
-
-            # Start conversion task 
-            # If we've already done batch anonymization, disable file-level anonymization
-            file_anonymize = anonymize and not batch_anonymization_needed
-            
-            background_tasks.add_task(
-                convert_dataset,
-                job_id=dataset_name,
-                conversion_type=conversion_type,
-                input_path=parsed_json_path,
-                output_dir=output_dir,
-                model_provider=model_provider,
-                model_name=model_name,
-                add_reasoning=add_reasoning,
-                api_key=api_key,
-                max_workers=max_workers,
-                train_split=train_split,
-                base_url=base_url,
-                anonymize=file_anonymize,  # Only anonymize if we haven't done batch anonymization
-                keywords=parsed_keywords,
-                use_web_search=use_web_search,
-                client_id=client_id
-            )
-            job_ids.append(dataset_name)
+                additional_options = json.loads(additional_options_json)
+            except json.JSONDecodeError:
+                return JSONResponse(
+                    status_code=400,
+                    content={"detail": "Invalid JSON in additional_options"}
+                )
         
-        # Monitor batch progress
-        async def update_multi_progress():
-            completed = 0
-            total = len(files)
-            while completed < total:
-                completed = 0
-                for job_id in job_ids:
-                    pr = get_progress(job_id)
-                    if pr and pr.get("completed", False):
-                        completed += 1
-                save_progress(multi_job_id, total, completed, success=True)
-                
-                if client_id:
-                    progress_data = get_progress(multi_job_id)
-                    await manager.send_progress(client_id, progress_data)
-                
-                if completed < total:
-                    await asyncio.sleep(5)
-
-        background_tasks.add_task(update_multi_progress)
+        # Initialize progress
+        await save_progress(
+            job_id, 
+            {
+                "status": "initializing", 
+                "progress": 0,
+                "total_files": len(file_paths),
+                "completed_files": 0
+            }
+        )
         
-        return JSONResponse({
-            "status": "Processing started",
-            "file_count": len(files),
-            "job_ids": job_ids,
-            "multi_job_id": multi_job_id,
-            "batch_folder": batch_folder_name
-        })
+        # Start batch conversion in background
+        background_tasks.add_task(
+            batch_convert_datasets,
+            job_id=job_id,
+            conversion_type=conversion_type,
+            file_paths=file_paths,
+            model_provider=model_provider,
+            model_name=model_name,
+            max_chunks=max_chunks,
+            anonymize=anonymize,
+            train_split=train_split,
+            keyword_extraction=keyword_extraction,
+            chunk_size=chunk_size,
+            overlap_size=overlap_size,
+            max_concurrent=max_concurrent,
+            api_key=api_key,
+            base_url=base_url,
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            additional_options=additional_options
+        )
+        
+        return {"job_id": job_id}
+    
     except Exception as e:
-        logger.error(f"Error in /convert-multiple/ endpoint: {str(e)}", exc_info=True)
-        return JSONResponse({"error": str(e)}, status_code=500)
+        logger.error(f"Error starting batch conversion: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Error starting batch conversion: {str(e)}"}
+        )
 
-@app.get("/jobs/{job_id}")
-async def get_job_status(job_id: str):
-    logger.info(f"/jobs/{job_id} - Checking job status.")
+# Extract keywords from a file
+@app.post("/extract-keywords")
+async def extract_keywords(file_info: Dict[str, str]):
+    """
+    Extract keywords from a file.
+    
+    Args:
+        file_info: Dictionary with file_path
+        
+    Returns:
+        dict: Extracted keywords
+    """
     try:
-        progress = get_progress(job_id)
-        if progress:
-            return progress
+        file_path = file_info.get("file_path")
+        if not file_path:
+            return JSONResponse(
+                status_code=400,
+                content={"detail": "Missing file_path parameter"}
+            )
         
-        output_dir = os.path.join(OUTPUT_DIR, job_id)
+        logger.info(f"Extracting keywords from file: {file_path}")
         
-        if not os.path.exists(output_dir):
-            return JSONResponse({"status": "Job not found"}, status_code=404)
+        # Check if file exists
+        if not os.path.exists(file_path):
+            return JSONResponse(
+                status_code=404,
+                content={"detail": f"File not found: {file_path}"}
+            )
         
-        train_path = os.path.join(output_dir, "train.jsonl")
-        valid_path = os.path.join(output_dir, "valid.jsonl")
+        # Parse the file to get its content
+        records = parse_file(file_path, logger)
+        if not records:
+            return JSONResponse(
+                status_code=400,
+                content={"detail": "Failed to parse file or file is empty"}
+            )
         
-        if os.path.exists(train_path) and os.path.exists(valid_path):
-            train_count = sum(1 for _ in open(train_path, 'r'))
-            valid_count = sum(1 for _ in open(valid_path, 'r'))
-            return JSONResponse({
-                "status": "completed",
-                "job_id": job_id,
-                "train_count": train_count,
-                "valid_count": valid_count,
-                "percentage": 100,
-                "completed": True
-            })
-        else:
-            return JSONResponse({
-                "status": "processing",
-                "job_id": job_id,
-                "percentage": 0,
-                "completed": False
-            })
+        # Extract text from the parsed records (concatenate first 3 chunks or fewer if less available)
+        max_chunks = min(3, len(records))
+        text_content = " ".join([record.get("input", "") for record in records[:max_chunks]])
+        
+        # Create LLM client and extract keywords
+        default_provider = get_default_provider()
+        client = get_llm_client(default_provider)
+        
+        if not client:
+            return JSONResponse(
+                status_code=500,
+                content={"detail": "Failed to initialize LLM client. Check API key."}
+            )
+        
+        # Generate keywords using the client
+        extracted_keywords = generate_keywords_from_text(text_content, client, max_keywords=10)
+        
+        return {"keywords": extracted_keywords}
+    
     except Exception as e:
-        logger.error(f"Error in /jobs/{job_id} endpoint: {str(e)}", exc_info=True)
-        return JSONResponse({"error": str(e)}, status_code=500)
+        logger.error(f"Error extracting keywords: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Error extracting keywords: {str(e)}"}
+        )
 
-@app.get("/download/{job_id}/{file_type}")
-async def download_file(job_id: str, file_type: str):
-    logger.info(f"/download/{job_id}/{file_type} - File download requested.")
-    if file_type not in ["train", "valid"]:
-        err_msg = "Invalid file type"
-        logger.error(err_msg)
-        return JSONResponse({"error": err_msg}, status_code=400)
+# Get conversion progress
+@app.get("/progress/{job_id}")
+async def get_conversion_progress(job_id: str):
+    """
+    Get the progress of a conversion job.
     
-    file_path = os.path.join(OUTPUT_DIR, job_id, f"{file_type}.jsonl")
-    if not os.path.exists(file_path):
-        err_msg = "File not found"
-        logger.error(err_msg)
-        return JSONResponse({"error": err_msg}, status_code=404)
-    
-    return FileResponse(file_path, filename=f"{job_id}_{file_type}.jsonl")
+    Args:
+        job_id (str): ID of the conversion job
+        
+    Returns:
+        dict: Progress information
+    """
+    try:
+        progress = await get_progress(job_id)
+        if progress is None:
+            return JSONResponse(
+                status_code=404,
+                content={"detail": f"Job {job_id} not found"}
+            )
+        return progress
+    except Exception as e:
+        logger.error(f"Error getting progress: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Error getting progress: {str(e)}"}
+        )
 
-@app.get("/download/{batch_name}/{subdir}/{file_type}")
-async def download_batch_subdir_file(batch_name: str, subdir: str, file_type: str):
-    """Download a specific file from a batch subdirectory."""
-    logger.info(f"/download/{batch_name}/{subdir}/{file_type} - File download from batch subdirectory requested.")
-    if file_type not in ["train", "valid"]:
-        err_msg = "Invalid file type"
-        logger.error(err_msg)
-        return JSONResponse({"error": err_msg}, status_code=400)
+# Download dataset
+@app.get("/download/{job_id}")
+async def download_dataset(job_id: str, format: str = "zip"):
+    """
+    Download a converted dataset.
     
-    file_path = os.path.join(OUTPUT_DIR, batch_name, subdir, f"{file_type}.jsonl")
-    if not os.path.exists(file_path):
-        err_msg = "File not found"
-        logger.error(err_msg)
-        return JSONResponse({"error": err_msg}, status_code=404)
+    Args:
+        job_id (str): ID of the conversion job
+        format (str): Format to download (zip, jsonl)
+        
+    Returns:
+        FileResponse or StreamingResponse: The dataset file
+    """
+    try:
+        job_dir = OUTPUT_DIR / job_id
+        
+        # Check if job directory exists
+        if not job_dir.exists():
+            return JSONResponse(
+                status_code=404,
+                content={"detail": f"Dataset for job {job_id} not found"}
+            )
+        
+        # Check if there are any files in the job directory
+        files = list(job_dir.glob('**/*.*'))
+        if not files:
+            return JSONResponse(
+                status_code=404,
+                content={"detail": f"No files found for job {job_id}"}
+            )
+        
+        # Handle different download formats
+        if format == "zip":
+            # Create a temporary directory for the zip file
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.zip') as temp_file:
+                zip_path = temp_file.name
+            
+            # Create a zip file containing all files in the job directory
+            with zipfile.ZipFile(zip_path, 'w') as zipf:
+                for file in files:
+                    arcname = file.relative_to(job_dir)
+                    zipf.write(file, arcname=arcname)
+            
+            # Return the zip file
+            return FileResponse(
+                zip_path,
+                media_type="application/zip",
+                filename=f"{job_id}_dataset.zip"
+            )
+        
+        elif format == "jsonl":
+            # Find all JSONL files
+            jsonl_files = list(job_dir.glob('**/*.jsonl'))
+            
+            if not jsonl_files:
+                return JSONResponse(
+                    status_code=404,
+                    content={"detail": f"No JSONL files found for job {job_id}"}
+                )
+            
+            # If there's only one JSONL file, return it directly
+            if len(jsonl_files) == 1:
+                return FileResponse(
+                    str(jsonl_files[0]),
+                    media_type="application/x-jsonlines",
+                    filename=f"{job_id}_dataset.jsonl"
+                )
+            
+            # If there are multiple JSONL files, combine them
+            async def combine_jsonl():
+                for jsonl_file in jsonl_files:
+                    with open(jsonl_file, 'rb') as f:
+                        for line in f:
+                            yield line
+                            yield b'\n'
+            
+            return StreamingResponse(
+                combine_jsonl(),
+                media_type="application/x-jsonlines",
+                headers={"Content-Disposition": f"attachment; filename={job_id}_dataset.jsonl"}
+            )
+        
+        else:
+            return JSONResponse(
+                status_code=400,
+                content={"detail": f"Unsupported download format: {format}"}
+            )
     
-    return FileResponse(file_path, filename=f"{batch_name}_{subdir}_{file_type}.jsonl")
+    except Exception as e:
+        logger.error(f"Error downloading dataset: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Error downloading dataset: {str(e)}"}
+        )
 
-@app.get("/download-zip/{dataset_name}")
-async def download_dataset_zip(dataset_name: str):
-    """Download entire dataset directory as a ZIP file."""
-    logger.info(f"/download-zip/{dataset_name} - ZIP download requested")
-    
-    dataset_path = os.path.join(OUTPUT_DIR, dataset_name)
-    if not os.path.exists(dataset_path):
-        return JSONResponse({"error": "Dataset not found"}, status_code=404)
-    
-    # Create in-memory ZIP file
-    zip_buffer = io.BytesIO()
-    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-        # Walk through the directory and add all files
-        for root, _, files in os.walk(dataset_path):
-            for file in files:
-                file_path = os.path.join(root, file)
-                # Store with relative path
-                arcname = os.path.relpath(file_path, os.path.dirname(dataset_path))
-                zip_file.write(file_path, arcname)
-    
-    # Reset buffer position
-    zip_buffer.seek(0)
-    
-    # Return the ZIP file
-    return StreamingResponse(
-        zip_buffer, 
-        media_type="application/zip",
-        headers={"Content-Disposition": f"attachment; filename={dataset_name}.zip"}
-    )
+# Get available conversion scripts
+@app.get("/scripts")
+async def get_scripts():
+    """Get available conversion scripts."""
+    return SCRIPTS
 
-@app.get("/download-zip/{batch_name}/{subdir}")
-async def download_subdirectory_zip(batch_name: str, subdir: str):
-    """Download a specific subdirectory from a batch dataset as a ZIP file."""
-    logger.info(f"/download-zip/{batch_name}/{subdir} - Subdirectory ZIP download requested")
-    
-    subdir_path = os.path.join(OUTPUT_DIR, batch_name, subdir)
-    if not os.path.exists(subdir_path):
-        return JSONResponse({"error": "Subdirectory not found"}, status_code=404)
-    
-    # Create in-memory ZIP file
-    zip_buffer = io.BytesIO()
-    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-        # Walk through the directory and add all files
-        for root, _, files in os.walk(subdir_path):
-            for file in files:
-                file_path = os.path.join(root, file)
-                # Store with relative path
-                arcname = os.path.relpath(file_path, os.path.dirname(subdir_path))
-                zip_file.write(file_path, arcname)
-    
-    # Reset buffer position
-    zip_buffer.seek(0)
-    
-    # Return the ZIP file
-    return StreamingResponse(
-        zip_buffer, 
-        media_type="application/zip",
-        headers={"Content-Disposition": f"attachment; filename={batch_name}_{subdir}.zip"}
-    )
-
+# List existing jobs/datasets
 @app.get("/jobs")
 async def list_jobs():
-    logger.info("Listing all jobs in /jobs endpoint.")
+    """List all existing conversion jobs."""
     jobs = []
     
-    # check output
-    for job_name in os.listdir(OUTPUT_DIR):
-        job_dir = os.path.join(OUTPUT_DIR, job_name)
-        if os.path.isdir(job_dir):
-            train_path = os.path.join(job_dir, "train.jsonl")
-            valid_path = os.path.join(job_dir, "valid.jsonl")
+    # Scan output directory for job directories
+    for job_dir in OUTPUT_DIR.iterdir():
+        if job_dir.is_dir():
+            job_name = job_dir.name
+            completed = True  # Assume completed if directory exists
             
-            # Check if this is a batch directory
-            is_batch = job_name.startswith("batch_")
-            # For batch directories, count total files across all subdirectories
-            total_files = 0
+            # Check for train/valid split
+            train_dir = job_dir / "train"
+            valid_dir = job_dir / "valid"
+            
+            train_count = 0
+            valid_count = 0
+            
+            if train_dir.exists():
+                train_files = list(train_dir.glob('**/*.jsonl'))
+                train_count = len(train_files)
+            
+            if valid_dir.exists():
+                valid_files = list(valid_dir.glob('**/*.jsonl'))
+                valid_count = len(valid_files)
+            
+            # For batch jobs, check subdirectories
+            total_files = train_count + valid_count
             subdirectories = []
             
-            if is_batch:
-                for subdir in os.listdir(job_dir):
-                    subdir_path = os.path.join(job_dir, subdir)
-                    if os.path.isdir(subdir_path):
-                        subdirectories.append(subdir)
-                        sub_train = os.path.join(subdir_path, "train.jsonl")
-                        sub_valid = os.path.join(subdir_path, "valid.jsonl")
-                        if os.path.exists(sub_train):
-                            total_files += sum(1 for _ in open(sub_train, 'r'))
-                        if os.path.exists(sub_valid):
-                            total_files += sum(1 for _ in open(sub_valid, 'r'))
-            
-            # For direct train/valid files
-            if os.path.exists(train_path) and os.path.exists(valid_path):
-                progress_data = get_progress(job_name)
-                completed = True
-                if progress_data:
-                    completed = progress_data.get("completed", True)
-                train_count = sum(1 for _ in open(train_path, 'r'))
-                valid_count = sum(1 for _ in open(valid_path, 'r'))
+            if job_name.startswith("batch_"):
+                # Check each subdirectory (per file in batch)
+                total_train = train_count
+                total_valid = valid_count
                 
-                jobs.append({
-                    "name": job_name,
-                    "train_count": train_count,
-                    "valid_count": valid_count,
-                    "completed": completed,
-                    "is_batch": is_batch,
-                    "total_files": total_files if is_batch else train_count + valid_count,
-                    "subdirectories": subdirectories if is_batch else []
-                })
-            # For batch directories without direct train/valid (only subdirectories)
-            elif is_batch and subdirectories:
-                progress_data = get_progress(job_name)
-                completed = True
-                if progress_data:
-                    completed = progress_data.get("completed", True)
-                
-                # Calculate total train and valid counts from all subdirectories
-                total_train = 0
-                total_valid = 0
-                for subdir in subdirectories:
-                    subdir_path = os.path.join(job_dir, subdir)
-                    sub_train = os.path.join(subdir_path, "train.jsonl")
-                    sub_valid = os.path.join(subdir_path, "valid.jsonl")
-                    if os.path.exists(sub_train):
-                        total_train += sum(1 for _ in open(sub_train, 'r'))
-                    if os.path.exists(sub_valid):
-                        total_valid += sum(1 for _ in open(sub_valid, 'r'))
+                for subdir in job_dir.iterdir():
+                    if subdir.is_dir() and subdir.name not in ["train", "valid"]:
+                        sub_train_dir = subdir / "train"
+                        sub_valid_dir = subdir / "valid"
+                        
+                        sub_train_count = 0
+                        sub_valid_count = 0
+                        
+                        if sub_train_dir.exists():
+                            sub_train_files = list(sub_train_dir.glob('**/*.jsonl'))
+                            sub_train_count = len(sub_train_files)
+                            total_train += sub_train_count
+                        
+                        if sub_valid_dir.exists():
+                            sub_valid_files = list(sub_valid_dir.glob('**/*.jsonl'))
+                            sub_valid_count = len(sub_valid_files)
+                            total_valid += sub_valid_count
+                        
+                        subdirectories.append({
+                            "name": subdir.name,
+                            "train_count": sub_train_count,
+                            "valid_count": sub_valid_count
+                        })
                 
                 jobs.append({
                     "name": job_name,
@@ -931,8 +1047,9 @@ async def list_jobs():
 
 @app.get("/models")
 async def get_models():
+    """Get available models based on API keys."""
     logger.info("Listing available models...")
-    return AVAILABLE_MODELS
+    return get_available_models(filter_by_api_keys=True)
 
 if __name__ == "__main__":
     host = os.getenv("HOST", "0.0.0.0")
@@ -940,18 +1057,5 @@ if __name__ == "__main__":
     
     template_dir = APP_DIR / "templates"
     template_dir.mkdir(exist_ok=True)
-    
-    index_path = template_dir / "index.html"
-    if not index_path.exists():
-        with open(index_path, "w") as f:
-            f.write("""
-<!DOCTYPE html>
-<html>
-<head><title>AnyDataset Converter</title></head>
-<body>
-<h1>API is running!</h1>
-</body>
-</html>
-        """)
     
     uvicorn.run(app, host=host, port=port)
