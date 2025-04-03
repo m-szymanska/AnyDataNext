@@ -105,7 +105,8 @@ def generate_qa_pairs(
     llm_client, 
     keywords=None, 
     use_web_search=False,
-    anonymize=False
+    anonymize=False,
+    questions_count=5
 ):
     """
     Generates question-answer pairs from an article.
@@ -148,7 +149,7 @@ def generate_qa_pairs(
     if keywords and keywords != ["AUTO"]:
         domain_guidance = f"\nFocus on these key concepts: {', '.join(keywords)}"
     
-    qa_prompt = f"""Generate 5 question-answer pairs based on this article: "{title}".
+    qa_prompt = f"""Generate {questions_count} question-answer pairs based on this article: "{title}".
 The questions should be diverse and cover the main aspects of the article.
 The questions should be from the perspective of a professional seeking specialized knowledge.
 The answers should be accurate, based on the article content, and include detailed information.
@@ -254,6 +255,81 @@ def add_reasoning(item, llm_client, keywords=None):
     return item
 
 
+async def convert(**kwargs):
+    """
+    Async conversion function for use with FastAPI.
+    Wrapper around process_articles.
+    
+    Returns:
+        dict: Result statistics
+    """
+    # Directly use input_path as a single article file
+    if 'input_path' in kwargs:
+        input_path = kwargs.get('input_path')
+        # Create a temporary directory with a copy of the input file
+        import tempfile
+        import shutil
+        
+        temp_dir = tempfile.mkdtemp()
+        temp_file = os.path.join(temp_dir, os.path.basename(input_path))
+        shutil.copy(input_path, temp_file)
+        
+        input_dir = temp_dir
+    else:
+        input_dir = kwargs.get('input_dir')
+    
+    output_dir = kwargs.get('output_dir')
+    client = kwargs.get('client')
+    
+    # Use either client or api_key
+    if client:
+        qa_api_key = None
+        qa_model = kwargs.get('model_provider', 'anthropic')
+    else:
+        qa_api_key = kwargs.get('api_key')
+        qa_model = kwargs.get('model_provider', 'anthropic')
+    
+    # Setup parameters
+    model_name = kwargs.get('model_name')
+    add_reasoning_flag = kwargs.get('add_reasoning_flag', False)
+    max_workers = kwargs.get('max_workers', 4)
+    train_split = kwargs.get('train_split', 0.8)
+    keywords = kwargs.get('keywords')
+    use_web_search = kwargs.get('use_web_search', False)
+    anonymize = kwargs.get('anonymize', False)
+    progress_callback = kwargs.get('progress_callback')
+    questions_count = kwargs.get('questions_count', 5)
+    consistent_anonymization = kwargs.get('consistent_anonymization', True)
+    
+    # Default to same model for reasoning
+    reasoning_model = kwargs.get('reasoning_model', qa_model)
+    reasoning_api_key = qa_api_key
+    
+    result = process_articles(
+        input_dir=input_dir,
+        output_dir=output_dir,
+        qa_model=qa_model,
+        reasoning_model=reasoning_model,
+        add_reasoning_flag=add_reasoning_flag,
+        qa_api_key=qa_api_key,
+        reasoning_api_key=reasoning_api_key,
+        max_workers=max_workers,
+        train_split=train_split,
+        keywords=keywords,
+        use_web_search=use_web_search,
+        anonymize=anonymize,
+        progress_callback=progress_callback,
+        consistent_anonymization=consistent_anonymization,
+        questions_count=questions_count
+    )
+    
+    # Clean up temp directory if created
+    if 'input_path' in kwargs:
+        import shutil
+        shutil.rmtree(input_dir)
+    
+    return result
+
 def process_articles(
     input_dir, 
     output_dir, 
@@ -268,7 +344,8 @@ def process_articles(
     use_web_search=False,
     anonymize=False,
     progress_callback=None,
-    consistent_anonymization=True
+    consistent_anonymization=True,
+    questions_count=5
 ):
     """
     Processes a directory of articles into Q&A pairs.
@@ -362,7 +439,8 @@ def process_articles(
                 qa_client, 
                 keywords, 
                 use_web_search,
-                individual_anonymize
+                individual_anonymize,
+                questions_count
             )
             print(f"Generated {len(qa_pairs)} Q&A pairs for {os.path.basename(file_path)}")
             return qa_pairs

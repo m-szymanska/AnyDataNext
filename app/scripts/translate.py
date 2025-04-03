@@ -16,7 +16,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils import get_llm_client, auto_generate_keywords, parallel_process
 
 
-def translate_and_convert(example, llm_client, keywords=None):
+def translate_and_convert(example, llm_client, keywords=None, input_language="en", output_language="pl"):
     """
     Translates and converts an example to ML format.
     
@@ -24,6 +24,8 @@ def translate_and_convert(example, llm_client, keywords=None):
         example (dict): Input example with 'instruction', 'input', 'output'
         llm_client: LLM client instance
         keywords (list, optional): Keywords for domain guidance
+        input_language (str): Source language code (e.g., 'en', 'pl', 'de')
+        output_language (str): Target language code (e.g., 'en', 'pl', 'de')
         
     Returns:
         dict: Formatted example with 'prompt' and 'completion'
@@ -32,8 +34,22 @@ def translate_and_convert(example, llm_client, keywords=None):
     input_text = example.get('input', '')
     output = example.get('output', '')
     
+    # Language mapping for human-readable names
+    language_names = {
+        "en": "English",
+        "pl": "Polish",
+        "de": "German",
+        "fr": "French", 
+        "es": "Spanish",
+        "it": "Italian",
+        "auto": "Auto-detected"
+    }
+    
+    source_lang = language_names.get(input_language, input_language)
+    target_lang = language_names.get(output_language, output_language)
+    
     # Create translation prompt
-    translation_prompt = f"Translate the following text from English to your language, preserving domain terminology:\n\n"
+    translation_prompt = f"Translate the following text from {source_lang} to {target_lang}, preserving domain terminology:\n\n"
     translation_prompt += f"Instruction: {instruction}\n"
     if input_text:
         translation_prompt += f"Input: {input_text}\n"
@@ -118,6 +134,54 @@ def add_reasoning(item, llm_client, keywords=None):
     return item
 
 
+async def convert(**kwargs):
+    """
+    Async conversion function for use with FastAPI.
+    Wrapper around process_dataset.
+    
+    Returns:
+        dict: Result statistics
+    """
+    input_path = kwargs.get('input_path')
+    output_dir = kwargs.get('output_dir')
+    client = kwargs.get('client')
+    model_name = kwargs.get('model_name')
+    max_chunks = kwargs.get('max_chunks', 0)
+    anonymize = kwargs.get('anonymize', False)
+    train_split = kwargs.get('train_split', 0.8)
+    keyword_extraction = kwargs.get('keyword_extraction', False)
+    keywords = kwargs.get('keywords', None)
+    chunk_size = kwargs.get('chunk_size', 2000)
+    overlap_size = kwargs.get('overlap_size', 200)
+    add_reasoning_flag = kwargs.get('add_reasoning_flag', False)
+    progress_callback = kwargs.get('progress_callback')
+    input_language = kwargs.get('input_language', "en")
+    output_language = kwargs.get('output_language', "pl")
+    
+    # Use either client and model_name or translate_model and translate_api_key
+    translate_model = kwargs.get('model_provider')
+    translate_api_key = kwargs.get('api_key')
+    
+    # Default to same model for reasoning if not specified
+    reasoning_model = kwargs.get('reasoning_model', translate_model)
+    reasoning_api_key = translate_api_key
+    
+    return process_dataset(
+        input_path=input_path,
+        output_dir=output_dir,
+        translate_model=translate_model,
+        reasoning_model=reasoning_model,
+        add_reasoning_flag=add_reasoning_flag,
+        translate_api_key=translate_api_key,
+        reasoning_api_key=reasoning_api_key,
+        max_workers=kwargs.get('max_workers', 4),
+        train_split=train_split,
+        keywords=keywords,
+        progress_callback=progress_callback,
+        input_language=input_language,
+        output_language=output_language
+    )
+
 def process_dataset(
     input_path, 
     output_dir, 
@@ -129,7 +193,9 @@ def process_dataset(
     max_workers=4,
     train_split=0.8,
     keywords=None,
-    progress_callback=None
+    progress_callback=None,
+    input_language="en",
+    output_language="pl"
 ):
     """
     Processes a dataset, translating and converting to ML format.
@@ -146,6 +212,8 @@ def process_dataset(
         train_split (float): Ratio of train/validation split
         keywords (list, optional): Keywords for domain guidance
         progress_callback (callable): Function to call with progress updates
+        input_language (str): Source language code (e.g., 'en', 'pl', 'de')
+        output_language (str): Target language code (e.g., 'en', 'pl', 'de')
         
     Returns:
         dict: Statistics about the processing
@@ -191,10 +259,10 @@ def process_dataset(
         print(f"Auto-generated keywords: {', '.join(keywords)}")
     
     # Translate and convert to ML format
-    print("Translating and converting to ML format...")
+    print(f"Translating from {input_language} to {output_language}...")
     
     def process_example(example):
-        return translate_and_convert(example, translate_client, keywords)
+        return translate_and_convert(example, translate_client, keywords, input_language, output_language)
     
     translated_examples = parallel_process(
         dataset, 
@@ -274,6 +342,8 @@ if __name__ == "__main__":
     parser.add_argument("--workers", type=int, default=4, help="Maximum number of parallel workers")
     parser.add_argument("--train-split", type=float, default=0.8, help="Ratio of train/validation split")
     parser.add_argument("--keywords", type=str, help="Comma-separated domain keywords or AUTO for automatic generation")
+    parser.add_argument("--input-language", type=str, default="en", help="Source language code (e.g., 'en', 'pl', 'de')")
+    parser.add_argument("--output-language", type=str, default="pl", help="Target language code (e.g., 'en', 'pl', 'de')")
     parser.set_defaults(reasoning=False)
     
     args = parser.parse_args()
@@ -299,5 +369,7 @@ if __name__ == "__main__":
         reasoning_api_key=reasoning_api_key,
         max_workers=args.workers,
         train_split=args.train_split,
-        keywords=keywords_list
+        keywords=keywords_list,
+        input_language=args.input_language,
+        output_language=args.output_language
     )

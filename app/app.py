@@ -20,6 +20,7 @@ from dotenv import load_dotenv
 import traceback
 import zipfile
 import io
+import time
 
 # Import parser utilities
 from utils.parsers import parse_file
@@ -115,14 +116,10 @@ SCRIPTS = {
         "path": str(APP_DIR / "scripts" / "standard.py"),
         "description": "Standard instruction-output datasets"
     },
-    # "dictionary": {
-    #     "path": str(APP_DIR / "scripts" / "dictionary.py"),
-    #     "description": "Dictionary/glossary datasets"
-    # },
-    # "translate": {
-    #     "path": str(APP_DIR / "scripts" / "translate.py"),
-    #     "description": "Translation and conversion of foreign datasets"
-    # },
+    "translate": {
+        "path": str(APP_DIR / "scripts" / "translate.py"),
+        "description": "Translation and conversion of datasets"
+    },
     "articles": {
         "path": str(APP_DIR / "scripts" / "articles.py"),
         "description": "Article processing for Q&A generation"
@@ -180,6 +177,10 @@ async def convert_dataset(
                                                        - keywords: list of keywords to add to metadata
                                                        - reasoning: bool to include reasoning in output
                                                        - questions_count: int number of questions for articles mode
+                                                       - input_language: str language code of input content
+                                                       - output_language: str language code for output
+                                                       - temperature: float model temperature (0.0-1.0)
+                                                       - max_tokens: int maximum tokens for model responses
     
     Returns:
         bool: True if conversion successful, False otherwise
@@ -239,6 +240,36 @@ async def convert_dataset(
             if "reasoning" in additional_options:
                 options["add_reasoning_flag"] = additional_options["reasoning"]
                 logger.info(f"Reasoning enabled: {options['add_reasoning_flag']}")
+            
+            # Handle language options
+            if "input_language" in additional_options:
+                options["input_language"] = additional_options["input_language"]
+                logger.info(f"Input language: {options['input_language']}")
+                
+            if "output_language" in additional_options:
+                options["output_language"] = additional_options["output_language"]
+                logger.info(f"Output language: {options['output_language']}")
+                
+                # If languages are different, use translate script
+                if ("input_language" in options and 
+                    "output_language" in options and
+                    options["input_language"] != options["output_language"] and
+                    options["output_language"] != "same"):
+                    
+                    # Only change script if not already set to translate
+                    if conversion_type != "translate":
+                        logger.info(f"Languages differ: {options['input_language']} -> {options['output_language']}")
+                        logger.info("Switching to translate script")
+                        conversion_type = "translate"
+            
+            # Handle model parameters
+            if "temperature" in additional_options:
+                options["temperature"] = additional_options["temperature"]
+                logger.info(f"Temperature: {options['temperature']}")
+                
+            if "max_tokens" in additional_options and additional_options["max_tokens"] > 0:
+                options["max_tokens"] = additional_options["max_tokens"]
+                logger.info(f"Max tokens: {options['max_tokens']}")
             
             # Add all other additional options
             options.update(additional_options)
@@ -326,7 +357,16 @@ async def batch_convert_datasets(
         base_url (str, optional): Base URL for the API
         system_prompt (str, optional): System prompt for the LLM
         user_prompt (str, optional): User prompt template for the LLM
-        additional_options (Dict, optional): Additional options
+        additional_options (Dict, optional): Additional options including:
+                                            - input_language: str language code of input content
+                                            - output_language: str language code for output
+                                            - temperature: float model temperature (0.0-1.0)
+                                            - max_tokens: int maximum tokens for model responses
+                                            - batch_strategy: str "yolo" or "paranoid"
+                                            - check_interval: int files to process before pause (for paranoid)
+                                            - multi_model: bool whether to use multiple models
+                                            - models: list of model configurations for parallel processing
+                                            - allocation_strategy: str strategy for distributing files to models
     
     Returns:
         bool: True if all conversions successful, False otherwise
@@ -355,6 +395,76 @@ async def batch_convert_datasets(
             file_id = f"{job_id}_{file_idx}"
             file_name = os.path.basename(file_path)
             
+            # Check for paranoid strategy
+            if additional_options and additional_options.get("batch_strategy") == "paranoid":
+                check_interval = additional_options.get("check_interval", 5)
+                if file_idx > 0 and file_idx % check_interval == 0:
+                    # Pause processing for manual verification
+                    await save_progress(
+                        job_id,
+                        {
+                            "status": "paused",
+                            "message": f"Paused for verification after {file_idx} files",
+                            "current_file": file_name,
+                            "current_file_idx": file_idx,
+                            "pause_reason": "manual_check"
+                        }
+                    )
+                    
+                    # In a real implementation, we would wait for user confirmation here
+                    # For now, just add a small delay to simulate waiting
+                    await asyncio.sleep(3)
+            
+            # Check for multi-model processing
+            current_provider = model_provider
+            current_model = model_name
+            current_api_key = api_key
+            current_base_url = base_url
+            
+            if additional_options and additional_options.get("multi_model", False) and "models" in additional_options:
+                models = additional_options["models"]
+                allocation_strategy = additional_options.get("allocation_strategy", "round-robin")
+                
+                if models and len(models) > 0:
+                    # Select model based on allocation strategy
+                    if allocation_strategy == "round-robin":
+                        model_idx = file_idx % len(models)
+                    elif allocation_strategy == "file-size":
+                        # Simple size-based allocation (bigger models for bigger files)
+                        try:
+                            file_size = os.path.getsize(file_path)
+                            # Sort models from smallest to largest capability
+                            sorted_idx = sorted(range(len(models)), 
+                                              key=lambda i: "opus" in models[i]["model"] or "gpt-4" in models[i]["model"])
+                            norm_size = min(1.0, file_size / (10 * 1024 * 1024))  # Normalize up to 10MB
+                            model_idx = sorted_idx[int(norm_size * len(models))]
+                        except:
+                            model_idx = file_idx % len(models)
+                    elif allocation_strategy == "file-type":
+                        # Allocation based on file type
+                        ext = os.path.splitext(file_name)[1].lower()
+                        if ext in ['.pdf', '.docx']:  # Complex docs to stronger models
+                            model_idx = 0  # Assume first model is strongest
+                        elif ext in ['.csv', '.json', '.yaml']:  # Structured data
+                            model_idx = len(models) // 2  # Middle capability
+                        else:  # Simple text files
+                            model_idx = len(models) - 1  # Last model
+                    else:  # Default to round-robin
+                        model_idx = file_idx % len(models)
+                    
+                    # Get the selected model
+                    model_config = models[model_idx]
+                    current_provider = model_config["provider"]
+                    current_model = model_config["model"]
+                    
+                    if model_config.get("api_key"):
+                        current_api_key = model_config["api_key"]
+                    
+                    if current_provider == "lmstudio" and model_config.get("base_url"):
+                        current_base_url = model_config["base_url"]
+                    
+                    logger.info(f"Using model {current_model} from provider {current_provider} for file: {file_name}")
+            
             async with semaphore:
                 logger.info(f"Processing file {file_idx+1}/{len(file_paths)}: {file_name}")
                 
@@ -374,16 +484,16 @@ async def batch_convert_datasets(
                     job_id=file_id,
                     conversion_type=conversion_type,
                     input_path=file_path,
-                    model_provider=model_provider,
-                    model_name=model_name,
+                    model_provider=current_provider,
+                    model_name=current_model,
                     max_chunks=max_chunks,
                     anonymize=anonymize,
                     train_split=train_split,
                     keyword_extraction=keyword_extraction,
                     chunk_size=chunk_size,
                     overlap_size=overlap_size,
-                    api_key=api_key,
-                    base_url=base_url,
+                    api_key=current_api_key,
+                    base_url=current_base_url,
                     system_prompt=system_prompt,
                     user_prompt=user_prompt,
                     additional_options=additional_options
@@ -506,6 +616,36 @@ async def get_process_page():
             return content
     except Exception as e:
         logger.error(f"Error loading process file template: {e}")
+        return HTMLResponse(content="<html><body><h1>Error loading template</h1></body></html>", status_code=500)
+
+# Route for the batch processing interface
+@app.get("/batch", response_class=HTMLResponse)
+async def get_batch_page():
+    """Return the batch processing HTML interface."""
+    try:
+        with open(APP_DIR / "templates" / "batch_process.html") as file:
+            # Inject dynamic model data
+            content = file.read()
+            model_js_code = get_provider_models_js()
+            
+            # Replace the hardcoded model options with dynamic ones
+            content = content.replace(
+                "const availableModels = {",
+                model_js_code
+            )
+            
+            # Inject default provider
+            default_provider = get_default_provider()
+            
+            # Set default provider in dropdown
+            content = content.replace(
+                '<select id="model-provider">',
+                f'<select id="model-provider" data-default="{default_provider}">'
+            )
+            
+            return content
+    except Exception as e:
+        logger.error(f"Error loading batch processing template: {e}")
         return HTMLResponse(content="<html><body><h1>Error loading template</h1></body></html>", status_code=500)
 
 # WebSocket endpoint for progress updates

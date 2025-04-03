@@ -154,6 +154,50 @@ def add_reasoning(item, llm_client, keywords=None):
     return item
 
 
+async def convert(**kwargs):
+    """
+    Async conversion function for use with FastAPI.
+    Wrapper around process_dataset.
+    
+    Returns:
+        dict: Result statistics
+    """
+    input_path = kwargs.get('input_path')
+    output_dir = kwargs.get('output_dir')
+    client = kwargs.get('client')
+    
+    if client:
+        # If client is provided, use it
+        api_key = None
+        model_provider = kwargs.get('model_provider', 'anthropic')
+        model_name = kwargs.get('model_name')
+    else:
+        # Otherwise use provided API key
+        api_key = kwargs.get('api_key')
+        model_provider = kwargs.get('model_provider', 'anthropic')
+        model_name = kwargs.get('model_name')
+    
+    add_reasoning_flag = kwargs.get('add_reasoning_flag', False)
+    max_workers = kwargs.get('max_workers', 4)
+    train_split = kwargs.get('train_split', 0.8)
+    keywords = kwargs.get('keywords')
+    use_web_search = kwargs.get('use_web_search', False)
+    progress_callback = kwargs.get('progress_callback')
+    
+    return process_dataset(
+        input_path=input_path,
+        output_dir=output_dir,
+        add_reasoning_flag=add_reasoning_flag,
+        api_key=api_key,
+        model_provider=model_provider,
+        model_name=model_name,
+        max_workers=max_workers,
+        train_split=train_split,
+        keywords=keywords,
+        use_web_search=use_web_search,
+        progress_callback=progress_callback
+    )
+
 def process_dataset(
     input_path, 
     output_dir, 
