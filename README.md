@@ -1,16 +1,49 @@
 # AnyDataset
 
-AnyDataset is a flexible, web-based tool for converting and processing various dataset formats for fine-tuning language models. It provides a user-friendly interface for transforming datasets into ML training formats, with support for multiple LLM providers.
+AnyDataset is a powerful, web-based application for transforming, processing, and enriching various data formats to create high-quality training datasets for language models. It provides an intuitive interface for handling multiple file types, multi-model processing, and advanced batch operations with real-time progress tracking.
 
-## Features
+## Key Features
 
-- **Multiple Data Formats Support**: Convert data from various formats (standard, OpenAI, DeepSeek, dictionary, etc.)
-- **Web Interface**: Easy-to-use web UI for dataset conversion and management
-- **Live Progress Tracking**: Real-time progress bars and status updates
-- **Parallel Processing**: Multi-threaded processing for fast conversions
-- **LLM Integration**: Add reasoning traces and enhancements using various LLM providers
-- **Dataset Enhancement**: Add domain-specific keywords, use web search, anonymize sensitive data
-- **Batch Processing**: Convert multiple files in a batch
+- **Multiple Processing Interfaces**:
+  - **Standard Interface**: Simple upload and conversion
+  - **Process File Interface**: 3-step guided workflow with keyword editing
+  - **Batch Processing Interface**: Parallel multi-file processing with advanced options
+
+- **Multi-Model Processing**:
+  - Dynamic detection of available models based on API keys
+  - Parallel processing using multiple LLM providers simultaneously
+  - File allocation strategies: round-robin, file-size-based, and file-type-based
+  - Cost estimation and resource optimization
+
+- **File Format Support**:
+  - Text files (TXT, MD)
+  - Structured data (CSV, JSON, YAML, SQL)
+  - Documents (PDF, DOCX)
+  - Audio files (WAV)
+  - And more...
+
+- **Advanced Processing Features**:
+  - Automated keyword extraction and editing
+  - Content reasoning traces with toggle option
+  - Anonymization of sensitive/PII data
+  - Custom chunking with size and overlap controls
+  - System prompts for contextual instructions
+
+- **Multilingual Support**:
+  - Process content in multiple languages
+  - Translation between language pairs
+  - Auto-language detection option
+  - Maintains domain-specific terminology
+
+- **Processing Strategies**:
+  - "YoLo" (fully automated processing)
+  - "Paranoid" (with verification checkpoints)
+  - Fine-grained control over model parameters (temperature, max_tokens)
+
+- **Real-Time Feedback**:
+  - WebSocket-based progress tracking
+  - Detailed job status reporting
+  - Cost and time estimation for batch jobs
 
 ## Supported LLM Providers
 
@@ -19,8 +52,8 @@ AnyDataset is a flexible, web-based tool for converting and processing various d
 - DeepSeek
 - Qwen
 - Mistral AI
-- Google AI (coming soon)
-- LM Studio (local models)
+- Google AI (planned)
+- LM Studio (for local models)
 - xAI, OpenRouter, Grok (experimental)
 
 ## Installation
@@ -32,47 +65,126 @@ cd AnyDataset
 ```
 
 2. Create a virtual environment and install dependencies:
+
+**Option A: Using standard pip**
 ```bash
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+**Option B: Using uv (recommended for faster installation)**
+```bash
+# Install uv if not already installed
+pip install uv
+
+# Create virtual environment and install dependencies
+uv venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+uv pip install -r requirements.txt
+```
+
 3. Configure environment variables:
 ```bash
-cp .env.example .env
-# Edit .env file to add your API keys
+# Copy the example environment file
+cp .env-example .env
+
+# Edit the .env file with your API keys
+nano .env  # or use any text editor
 ```
 
 ## Usage
 
-Start the AnyDataset server:
+**Option A: Start with Python directly**
 ```bash
-python app.py
+python app/app.py
 ```
 
-Then access the web interface at http://localhost:8000 (or your configured IP/port).
+**Option B: Start with uvicorn directly**
+```bash
+uvicorn app.app:app --host 0.0.0.0 --port 8000
+```
+
+**Option C: Start with uv (recommended)**
+```bash
+uv run app/app.py
+```
+
+Then access the web interface at http://localhost:8000
+
+### Interface Options
+
+- **Main Interface** (/) - Basic dataset conversion
+- **Process File** (/process) - 3-step guided processing workflow
+- **Batch Processing** (/batch) - Advanced batch operations with multi-model support
+
+## Intermediate JSON Format
+
+AnyDataset uses a standardized intermediate JSON format for processing:
+
+```json
+{
+  "instruction": "Question/instruction",
+  "input": "Document context",
+  "output": "Response/result",
+  "metadata": {
+    "source_file": "source_file.pdf",
+    "keywords": ["keyword1", "keyword2"],
+    "chunk_index": 3,
+    "total_chunks": 12,
+    "model_used": "claude-3-opus-20240229",
+    "processing_time": "1.23s"
+  },
+  "reasoning": "Analysis and reasoning trace..."
+}
+```
 
 ## API Usage
 
-AnyDataset also provides a REST API for automation:
+AnyDataset provides a REST API for automation:
 
 ```bash
 # Convert a single file
-curl -X POST -F "file=@your_file.json" -F "dataset_name=your_dataset" -F "conversion_type=standard" http://localhost:8000/convert/
+curl -X POST -F "file=@your_file.json" \
+             -F "conversion_type=standard" \
+             -F "model_provider=anthropic" \
+             -F "model_name=claude-3-opus-20240229" \
+             http://localhost:8000/convert/
 
-# Process articles in a directory
-curl -X POST -F "article_dir=/path/to/articles" -F "dataset_name=article_dataset" http://localhost:8000/process-articles/
+# Batch process multiple files
+curl -X POST -F "file_paths=[\"path1.txt\", \"path2.pdf\"]" \
+             -F "conversion_type=standard" \
+             -F "model_provider=anthropic" \
+             -F "additional_options_json={\"multi_model\":true,\"batch_strategy\":\"yolo\"}" \
+             http://localhost:8000/batch-convert/
 ```
 
 ## Project Structure
 
-- `/scripts`: Conversion scripts for different formats
-- `/utils`: Utility functions and classes
-- `/uploads`: Temporary storage for uploaded files
-- `/ready`: Output directory for processed datasets
-- `/progress`: Job status tracking files
-- `/templates`: HTML templates (for future extensions)
+- `/app` - Main application code
+  - `/app.py` - FastAPI application and main endpoints
+  - `/scripts` - Conversion scripts for different formats
+  - `/utils` - Utility functions and helpers
+  - `/templates` - HTML interface templates
+  - `/uploads` - Temporary storage for uploaded files
+  - `/ready` - Output directory for processed datasets
+- `/data` - Sample data files for testing
+- `/docs` - Documentation and requirements
+
+## Future Development
+
+The project roadmap includes:
+
+1. **Prepare Training Data** interface for:
+   - Filtering examples by quality
+   - Deduplication and augmentation
+   - Train/valid/test splitting
+   - Dataset metrics and visualization
+
+2. **Multi-modal support** for:
+   - Image processing with vision-language models
+   - Audio transcription and analysis
+   - Combined text + image + audio processing
 
 ## Contributing
 

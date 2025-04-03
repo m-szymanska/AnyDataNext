@@ -2,50 +2,56 @@
 
 ## Podsumowanie kluczowych funkcjonalności i przyszłych kierunków
 
-### 1. Nowy interfejs Process File
+### 1. Nowy interfejs Process File [x]
 
-- **Etapowe przetwarzanie**:
-  - Upload i automatyczne rozpoznanie formatu pliku
-  - Automatyczne generowanie słów kluczowych z możliwością edycji
-  - Konfiguracja opcji przetwarzania i wybór formatu docelowego
+- **Etapowe przetwarzanie**: [x]
+  - [x] Upload i automatyczne rozpoznanie formatu pliku
+  - [x] Automatyczne generowanie słów kluczowych z możliwością edycji
+  - [x] Konfiguracja opcji przetwarzania i wybór formatu docelowego
 
-- **System Prompt**:
-  - Pole tekstowe dla kontekstu zadania (np. "Segregujesz stare artykuły weterynaryjne...")
-  - Dostosowanie instrukcji do konkretnego zadania bez ingerencji w kod
+- **System Prompt**: [x]
+  - [x] Pole tekstowe dla kontekstu zadania (np. "Segregujesz stare artykuły weterynaryjne...")
+  - [x] Dostosowanie instrukcji do konkretnego zadania bez ingerencji w kod
 
-- **Opcje modelu**:
-  - Temperature (0.0-1.0)
-  - Max tokens 
-  - Top-p sampling
-  - Frequency penalty
+- **Opcje modelu**: [x]
+  - [x] Temperature (0.0-1.0)
+  - [x] Max tokens 
+  - [ ] Top-p sampling (priorytet niski)
+  - [ ] Frequency penalty (priorytet niski)
 
-- **Zaawansowane opcje**:
-  - Reasoning - włączenie/wyłączenie śladu rozumowania
-  - Anonymization - anonimizacja danych wrażliwych
-  - Token limit per chunk - kontrola długości fragmentów
-  - Chunk overlap - nakładanie się fragmentów tekstu
+- **Zaawansowane opcje**: [x]
+  - [x] Reasoning - włączenie/wyłączenie śladu rozumowania
+  - [x] Anonymization - anonimizacja danych wrażliwych
+  - [x] Token limit per chunk - kontrola długości fragmentów
+  - [x] Chunk overlap - nakładanie się fragmentów tekstu
 
-### 2. Ulepszony Batch Processing
+### 2. Ulepszony Batch Processing [x]
 
-- **Pełna automatyzacja**:
-  - Automatyczne przetwarzanie wielu plików bez potrzeby ręcznej edycji
-  - Brak etapu edycji słów kluczowych - wszystko dzieje się automatycznie
-  - Strategia "YoLo" - uruchom i zapomnij (domyślna)
-  - Strategia "Paranoid" - podgląd co X plików (opcjonalna)
+- **Pełna automatyzacja**: [x]
+  - [x] Automatyczne przetwarzanie wielu plików bez potrzeby ręcznej edycji
+  - [x] Brak etapu edycji słów kluczowych - wszystko dzieje się automatycznie
+  - [x] Strategia "YoLo" - uruchom i zapomnij (domyślna)
+  - [x] Strategia "Paranoid" - podgląd co X plików (opcjonalna)
 
-- **Multi-model Processing**:
-  - Równoległe wykorzystanie kilku modeli (checkbox)
-  - Strategie dystrybucji plików między modele:
-    - Round Robin
-    - File Size Based
-    - File Type Based
-    - Cost Optimization
+- **Multi-model Processing**: [x]
+  - [x] Równoległe wykorzystanie kilku modeli (checkbox)
+  - [x] Strategie dystrybucji plików między modele:
+    - [x] Round Robin
+    - [x] File Size Based
+    - [x] File Type Based
+    - [x] Cost Optimization
 
-- **Kontrola przetwarzania**:
-  - Elastyczna konfiguracja maksymalnej liczby równoległych zadań
-  - Szacowanie kosztów i ograniczenia budżetowe
-  - Podgląd postępu z szacowanym czasem ukończenia
-  - Możliwość wstrzymania/wznowienia procesu
+- **Kontrola przetwarzania**: [x]
+  - [x] Elastyczna konfiguracja maksymalnej liczby równoległych zadań
+  - [x] Szacowanie kosztów i ograniczenia budżetowe
+  - [x] Podgląd postępu z szacowanym czasem ukończenia
+  - [ ] Możliwość wstrzymania/wznowienia procesu (częściowo zaimplementowane w trybie Paranoid)
+  
+- **Obsługa języków**: [x]
+  - [x] Wybór języka wejściowego (w tym auto-detekcja)
+  - [x] Wybór języka wyjściowego
+  - [x] Automatyczne tłumaczenie między językami
+  - [x] Integracja z istniejącym skryptem translate.py
 
 ### 3. Format pośredni JSON
 
@@ -122,25 +128,33 @@
 
 ## Kolejne kroki implementacyjne
 
-1. **Faza 1** - Ulepszenie interfejsu Process File:
-   - Wdrożenie nowego interfejsu trójstopniowego
-   - Dodanie opcji reasoningu i dynamicznej konfiguracji modelu
-   - Integracja z automatycznym generowaniem słów kluczowych
+1. **Faza 1** - Ulepszenie interfejsu Process File: [x]
+   - [x] Wdrożenie nowego interfejsu trójstopniowego
+   - [x] Dodanie opcji reasoningu i dynamicznej konfiguracji modelu
+   - [x] Integracja z automatycznym generowaniem słów kluczowych
 
-2. **Faza 2** - Modernizacja Batch Processing:
-   - Implementacja "YoLo" i "Paranoid" strategii
-   - Dodanie wielomodelowego przetwarzania
-   - Rozbudowa funkcji kontroli kosztów i zasobów
+2. **Faza 2** - Modernizacja Batch Processing: [x]
+   - [x] Implementacja "YoLo" i "Paranoid" strategii
+   - [x] Dodanie wielomodelowego przetwarzania
+   - [x] Rozbudowa funkcji kontroli kosztów i zasobów
+   - [x] Dodanie obsługi wielu języków i tłumaczenia
+   - [x] Implementacja strategii alokacji zadań (round-robin, file-size, file-type)
+   - [x] Dodanie kontroli parametrów modelu (temperature, max_tokens)
+   - [x] Wizualizacja szacowanego czasu i kosztu operacji
 
-3. **Faza 3** - Zakładka Prepare Training Data:
-   - Implementacja przygotowania danych treningowych
-   - Dodanie transformacji i walidacji danych
-   - Raportowanie i wizualizacje
+3. **Faza 3** - Zakładka Prepare Training Data: [ ]
+   - [ ] Implementacja przygotowania danych treningowych
+   - [ ] Dodanie transformacji i walidacji danych
+   - [ ] Raportowanie i wizualizacje
+   - [ ] Filtrowanie przykładów o niskiej jakości
+   - [ ] Deduplikacja i augmentacja danych
 
-4. **Faza 4** - Podstawowe wsparcie dla multimodalności:
-   - Rozszerzenie formatu JSON
-   - Podstawowe przetwarzanie obrazów i audio
-   - Zakładka "Multimedia"
+4. **Faza 4** - Podstawowe wsparcie dla multimodalności: [ ]
+   - [ ] Rozszerzenie formatu JSON
+   - [ ] Podstawowe przetwarzanie obrazów i audio
+   - [ ] Zakładka "Multimedia"
+   - [ ] Integracja z VLM dla obrazów
+   - [ ] Automatyczna transkrypcja i przetwarzanie audio
 
 ## Wizja długoterminowa
 
