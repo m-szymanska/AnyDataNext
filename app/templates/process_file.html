@@ -492,20 +492,27 @@
             }
             
             async function uploadFile(file) {
+                console.log('Starting file upload for:', file.name);
                 const formData = new FormData();
                 formData.append('file', file);
                 
                 try {
+                    console.log('Sending POST request to /upload');
                     const response = await fetch('/upload', {
                         method: 'POST',
                         body: formData
                     });
                     
+                    console.log('Upload response status:', response.status);
+                    
                     if (!response.ok) {
-                        throw new Error('File upload failed');
+                        const errorText = await response.text();
+                        console.error('Upload error details:', errorText);
+                        throw new Error(`File upload failed with status ${response.status}`);
                     }
                     
                     const data = await response.json();
+                    console.log('Upload response data:', data);
                     uploadedFilePath = data.file_path;
                     console.log('File uploaded successfully:', uploadedFilePath);
                 } catch (error) {

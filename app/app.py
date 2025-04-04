@@ -89,10 +89,11 @@ manager = ConnectionManager()
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # In production you should restrict this
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 # Paths
@@ -648,6 +649,18 @@ async def get_batch_page():
         logger.error(f"Error loading batch processing template: {e}")
         return HTMLResponse(content="<html><body><h1>Error loading template</h1></body></html>", status_code=500)
 
+# Route for the prepare training data interface
+@app.get("/prepare", response_class=HTMLResponse)
+async def get_prepare_data_page():
+    """Return the prepare training data HTML interface."""
+    try:
+        with open(APP_DIR / "templates" / "prepare_data.html") as file:
+            content = file.read()
+            return content
+    except Exception as e:
+        logger.error(f"Error loading prepare data template: {e}")
+        return HTMLResponse(content="<html><body><h1>Error loading template</h1></body></html>", status_code=500)
+
 # WebSocket endpoint for progress updates
 @app.websocket("/ws/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str):
@@ -673,7 +686,7 @@ async def upload_file(file: UploadFile = File(...)):
     """
     try:
         # Generate a unique filename using a timestamp and random string
-        timestamp = int(os.path.getmtime(file.file._file.name)) if hasattr(file.file, '_file') else int(time.time())
+        timestamp = int(time.time())
         random_str = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz', k=6))
         original_filename = file.filename
         safe_filename = ''.join(c if c.isalnum() or c in '._- ' else '_' for c in original_filename)
@@ -686,9 +699,14 @@ async def upload_file(file: UploadFile = File(...)):
         
         # Save the file
         with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+            # Reset file cursor to beginning
+            await file.seek(0)
+            # Copy content
+            content = await file.read()
+            buffer.write(content)
         
         # Return the local file path for further processing
+        logger.info(f"File saved successfully: {file_path}")
         return {"filename": original_filename, "file_path": file_path}
     
     except Exception as e:
