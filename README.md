@@ -84,6 +84,8 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 uv pip install -r requirements.txt
 ```
 
+If you encounter any dependency errors when running the application, the startup script will automatically detect missing dependencies and guide you on how to install them.
+
 3. Configure environment variables:
 ```bash
 # Copy the example environment file

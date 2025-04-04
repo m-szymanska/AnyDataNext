@@ -3,6 +3,7 @@
 AnyDataset - Startup Script
 
 This script handles setup and launching of the AnyDataset application.
+- Checks required dependencies
 - Creates required directories
 - Sets proper permissions
 - Starts the FastAPI server
@@ -13,6 +14,7 @@ import shutil
 from pathlib import Path
 import subprocess
 import logging
+import importlib.util
 
 # Configure logging
 logging.basicConfig(
@@ -98,10 +100,41 @@ def start_application():
         logger.error("No suitable Python runtime found. Please install Python 3.7+")
         return 1
 
+def check_dependencies():
+    """Check if all required dependencies are installed."""
+    required_packages = [
+        "fastapi",
+        "uvicorn",
+        "python-multipart",
+        "python-dotenv",
+        "pydantic"
+    ]
+    
+    missing_packages = []
+    
+    for package in required_packages:
+        if importlib.util.find_spec(package.replace('-', '_')) is None:
+            missing_packages.append(package)
+    
+    if missing_packages:
+        logger.error("Missing required dependencies: " + ", ".join(missing_packages))
+        logger.error("Please install missing dependencies using:")
+        logger.error(f"pip install {' '.join(missing_packages)}")
+        logger.error("Or install all requirements using:")
+        logger.error("pip install -r requirements.txt")
+        return False
+    
+    return True
+
 if __name__ == "__main__":
     try:
         # Ensure we're in the right directory
         os.chdir(os.path.dirname(os.path.abspath(__file__)))
+        
+        # Check dependencies
+        if not check_dependencies():
+            logger.error("Cannot start due to missing dependencies.")
+            sys.exit(1)
         
         # Prepare environment
         prepare_environment()
