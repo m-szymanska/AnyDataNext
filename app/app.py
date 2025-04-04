@@ -6,6 +6,7 @@ import json
 import os
 import random
 import asyncio
+import re
 from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import JSONResponse, FileResponse, HTMLResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -998,9 +999,33 @@ async def extract_keywords(file_info: Dict[str, str]):
             )
         
         # Generate keywords using the client
-        extracted_keywords = generate_keywords_from_text(text_content, client, max_keywords=10)
-        
-        return {"keywords": extracted_keywords}
+        try:
+            extracted_keywords = generate_keywords_from_text(text_content, client, max_keywords=10)
+            
+            # Sprawdź czy faktycznie mamy słowa kluczowe
+            if not extracted_keywords or len(extracted_keywords) == 0:
+                # Jeśli nie mamy słów kluczowych, użyj prostego podziału tekstu jako awaryjny mechanizm
+                logger.warning("No keywords extracted, using fallback method")
+                # Wyodrębnij słowa dłuższe niż 4 znaki jako potencjalne słowa kluczowe
+                words = [word for word in re.findall(r'\b\w{5,}\b', text_content) 
+                         if not word.lower() in ['gdzie', 'kiedy', 'który', 'która', 'jakie', 'takie']]
+                # Wybierz unikalne słowa
+                unique_words = list(set(words))
+                # Weź najczęściej występujące słowa
+                word_counts = {word: text_content.lower().count(word.lower()) for word in unique_words}
+                sorted_words = sorted(word_counts.items(), key=lambda x: x[1], reverse=True)
+                extracted_keywords = [word for word, count in sorted_words[:10]]
+            
+            logger.info(f"Successfully extracted keywords: {extracted_keywords}")
+            return {"keywords": extracted_keywords}
+        except Exception as e:
+            logger.error(f"Error generating keywords: {e}")
+            # Użyj domyślnych słów kluczowych jako awaryjnego mechanizmu
+            filename = os.path.basename(file_path)
+            file_ext = os.path.splitext(filename)[1].lower()[1:]  # Usuń kropkę z rozszerzenia
+            default_keywords = ["dataset", "dane", file_ext]
+            logger.info(f"Using default keywords: {default_keywords}")
+            return {"keywords": default_keywords}
     
     except Exception as e:
         logger.error(f"Error extracting keywords: {e}")

@@ -53,7 +53,9 @@
   - [x] Automatyczne tłumaczenie między językami
   - [x] Integracja z istniejącym skryptem translate.py
 
-### 3. Format pośredni JSON
+### 3. Format pośredni JSON [x]
+
+Format pośredni JSON został zaimplementowany i jest używany jako standardowy format dla wszystkich etapów przetwarzania. Format ten został zaprojektowany tak, aby mógł być łatwo rozszerzany o nowe funkcjonalności w przyszłości.
 
 ```json
 [
@@ -142,19 +144,28 @@
    - [x] Dodanie kontroli parametrów modelu (temperature, max_tokens)
    - [x] Wizualizacja szacowanego czasu i kosztu operacji
 
-3. **Faza 3** - Zakładka Prepare Training Data: [ ]
-   - [ ] Implementacja przygotowania danych treningowych
+3. **Faza 2.5** - Poprawki i udoskonalenia: [x]
+   - [x] Naprawa funkcjonalności drag and drop do przesyłania plików
+   - [x] Uproszczenie interfejsu głównego (usunięcie nieużywanych funkcji)
+   - [x] Rozwiązanie problemu zawieszonych zadań w "Existing Datasets"
+   - [x] Naprawa błędu w API Anthropic podczas ekstrakcji słów kluczowych
+   - [x] Dodanie mechanizmu awaryjnego generowania słów kluczowych
+   - [x] Konfiguracja dostępu przez sieć ZeroTier dla pracy zespołowej
+
+4. **Faza 3** - Zakładka Prepare Training Data: [ ]
+   - [ ] Implementacja przygotowania danych treningowych z makiety do pełnej funkcjonalności
    - [ ] Dodanie transformacji i walidacji danych
+   - [ ] Generowanie i optymalizacja JSON/JSONL zgodnie z formatem pośrednim
    - [ ] Raportowanie i wizualizacje
    - [ ] Filtrowanie przykładów o niskiej jakości
    - [ ] Deduplikacja i augmentacja danych
 
-4. **Faza 4** - Podstawowe wsparcie dla multimodalności: [ ]
-   - [ ] Rozszerzenie formatu JSON
-   - [ ] Podstawowe przetwarzanie obrazów i audio
-   - [ ] Zakładka "Multimedia"
-   - [ ] Integracja z VLM dla obrazów
+5. **Faza 4** - Podstawowe wsparcie dla multimodalności: [ ]
+   - [ ] Rozszerzenie formatu JSON o obsługę audio
+   - [ ] Podstawowe przetwarzanie plików audio
+   - [ ] Zakładka "Multimedia" z obsługą plików audio
    - [ ] Automatyczna transkrypcja i przetwarzanie audio
+   - [ ] Integracja z modelami AI do analizy audio
 
 ## Wizja długoterminowa
 

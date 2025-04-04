@@ -45,13 +45,24 @@ class AnthropicClient(LLMClient):
     def generate(self, messages, model="claude-3-sonnet-20240229", max_tokens=1000, temperature=0.7, system=None, **kwargs):
         """Generates a response using Claude API."""
         try:
-            response = self.client.messages.create(
-                model=model,
-                max_tokens=max_tokens, 
-                temperature=temperature,
-                system=system,
-                messages=messages
-            )
+            # Przygotuj parametry bez system jeśli jest None
+            params = {
+                "model": model,
+                "max_tokens": max_tokens, 
+                "temperature": temperature,
+                "messages": messages
+            }
+            
+            # Dodaj system tylko jeśli nie jest None
+            if system is not None:
+                params["system"] = system
+                
+            # Dodaj pozostałe parametry z kwargs
+            for key, value in kwargs.items():
+                if value is not None:
+                    params[key] = value
+                    
+            response = self.client.messages.create(**params)
             return response.content[0].text
         except Exception as e:
             logger.error(f"Error with Anthropic API: {e}")
