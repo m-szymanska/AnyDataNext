@@ -33,6 +33,11 @@ from utils import (
 )
 from utils.models import get_available_models, get_default_provider, get_provider_models_js
 
+# Create async wrapper for save_progress
+async def async_save_progress(job_id, data_or_total, processed=None, success=True, error=None):
+    """Async wrapper for save_progress to maintain compatibility"""
+    return save_progress(job_id, data_or_total, processed, success, error)
+
 # Load environment variables
 dotenv_path = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) / '.env'
 load_dotenv(dotenv_path=dotenv_path)
@@ -203,7 +208,12 @@ async def convert_dataset(
     """
     try:
         # Initialize progress tracking
-        await save_progress(job_id, {"status": "started", "progress": 0, "message": "Starting conversion..."})
+        progress_data = {
+            "status": "started", 
+            "progress": 0, 
+            "message": "Starting conversion..."
+        }
+        await async_save_progress(job_id, progress_data)
         logger.info(f"Starting conversion job {job_id} with {conversion_type}")
         
         # Create output directory
@@ -216,7 +226,7 @@ async def convert_dataset(
         if not client:
             error_msg = f"Failed to initialize {model_provider} client. Check API key."
             logger.error(error_msg)
-            await save_progress(job_id, {"status": "error", "message": error_msg})
+            await async_save_progress(job_id, {"status": "error", "message": error_msg})
             return False
         
         # Prepare options
@@ -299,7 +309,7 @@ async def convert_dataset(
             result = await script.convert(**options)
             
             if result:
-                await save_progress(
+                await async_save_progress(
                     job_id, 
                     {
                         "status": "completed", 
@@ -312,7 +322,7 @@ async def convert_dataset(
                 logger.info(f"Conversion job {job_id} completed successfully")
                 return True
             else:
-                await save_progress(
+                await async_save_progress(
                     job_id, 
                     {
                         "status": "error",
@@ -324,14 +334,14 @@ async def convert_dataset(
         else:
             error_msg = f"Unknown conversion type: {conversion_type}"
             logger.error(error_msg)
-            await save_progress(job_id, {"status": "error", "message": error_msg})
+            await async_save_progress(job_id, {"status": "error", "message": error_msg})
             return False
             
     except Exception as e:
         error_msg = f"Error in conversion process: {e}"
         logger.error(error_msg)
         logger.error(traceback.format_exc())
-        await save_progress(job_id, {"status": "error", "message": error_msg})
+        await async_save_progress(job_id, {"status": "error", "message": error_msg})
         return False
 
 async def batch_convert_datasets(
@@ -393,7 +403,7 @@ async def batch_convert_datasets(
         os.makedirs(batch_dir, exist_ok=True)
         
         # Initialize progress tracking
-        await save_progress(
+        await async_save_progress(
             job_id, 
             {
                 "status": "started",
@@ -416,7 +426,7 @@ async def batch_convert_datasets(
                 check_interval = additional_options.get("check_interval", 5)
                 if file_idx > 0 and file_idx % check_interval == 0:
                     # Pause processing for manual verification
-                    await save_progress(
+                    await async_save_progress(
                         job_id,
                         {
                             "status": "paused",
@@ -485,7 +495,7 @@ async def batch_convert_datasets(
                 logger.info(f"Processing file {file_idx+1}/{len(file_paths)}: {file_name}")
                 
                 # Update overall batch progress
-                await save_progress(
+                await async_save_progress(
                     job_id,
                     {
                         "status": "processing",
@@ -519,7 +529,7 @@ async def batch_convert_datasets(
                 completed = await get_progress(job_id)
                 completed_files = completed.get("completed_files", 0) + 1
                 
-                await save_progress(
+                await async_save_progress(
                     job_id,
                     {
                         "status": "processing",
@@ -541,7 +551,7 @@ async def batch_convert_datasets(
         all_success = all(results)
         
         if all_success:
-            await save_progress(
+            await async_save_progress(
                 job_id,
                 {
                     "status": "completed",
@@ -555,7 +565,7 @@ async def batch_convert_datasets(
             logger.info(f"Batch job {job_id} completed successfully")
         else:
             failed_count = len(results) - sum(results)
-            await save_progress(
+            await async_save_progress(
                 job_id,
                 {
                     "status": "completed_with_errors",
@@ -575,7 +585,7 @@ async def batch_convert_datasets(
         error_msg = f"Error in batch conversion: {e}"
         logger.error(error_msg)
         logger.error(traceback.format_exc())
-        await save_progress(job_id, {"status": "error", "message": error_msg})
+        await async_save_progress(job_id, {"status": "error", "message": error_msg})
         return False
 
 # Route for the homepage
@@ -791,7 +801,7 @@ async def convert_file(
                 )
         
         # Initialize progress
-        await save_progress(job_id, {"status": "initializing", "progress": 0})
+        await async_save_progress(job_id, {"status": "initializing", "progress": 0})
         
         # Start conversion in background
         background_tasks.add_task(
@@ -895,7 +905,7 @@ async def batch_convert(
                 )
         
         # Initialize progress
-        await save_progress(
+        await async_save_progress(
             job_id, 
             {
                 "status": "initializing", 
@@ -1205,16 +1215,31 @@ async def list_jobs():
                 continue
             
             p_data = get_progress(job_name)
-            if p_data and not p_data.get("completed", False):
-                jobs.append({
-                    "name": job_name,
-                    "train_count": 0,
-                    "valid_count": 0,
-                    "completed": False,
-                    "is_batch": job_name.startswith("batch_"),
-                    "total_files": 0,
-                    "subdirectories": []
-                })
+            if p_data:
+                # Check if job is still in progress
+                is_completed = p_data.get("completed", False)
+                
+                # Check for stalled jobs (more than 1 hour old with no progress)
+                is_stalled = False
+                progress_file_path = PROGRESS_DIR / progress_file
+                file_mtime = os.path.getmtime(progress_file_path)
+                current_time = time.time()
+                # If the file is more than 1 hour old and not completed, consider it stalled
+                if current_time - file_mtime > 3600 and not is_completed:
+                    is_stalled = True
+                    logger.warning(f"Detected stalled job: {job_name}, last update: {file_mtime}")
+                
+                # Only add non-completed and non-stalled jobs to the active job list
+                if not is_completed and not is_stalled:
+                    jobs.append({
+                        "name": job_name,
+                        "train_count": 0,
+                        "valid_count": 0,
+                        "completed": False,
+                        "is_batch": job_name.startswith("batch_") or job_name.startswith("multi_batch_"),
+                        "total_files": p_data.get("total_files", 0),
+                        "subdirectories": []
+                    })
     
     return jobs
 

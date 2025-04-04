@@ -3,569 +3,167 @@
 <head>
     <title>AnyDataset Batch Processor</title>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; }
-        h1, h2, h3 { color: #333; }
-        .form-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; }
-        input, select, textarea { width: 100%; padding: 8px; box-sizing: border-box; }
-        .checkbox-group { display: flex; align-items: center; }
-        .checkbox-group input[type="checkbox"] { width: auto; margin-right: 10px; }
-        .checkbox-group label { display: inline; font-weight: normal; }
-        button { background: #4CAF50; color: white; padding: 10px 15px; border: none; cursor: pointer; margin-right: 10px; }
-        button.secondary { background: #607D8B; }
-        button.danger { background: #F44336; }
-        button.disabled { background: #cccccc; cursor: not-allowed; }
-        .status { margin-top: 20px; padding: 15px; background: #f1f1f1; }
-        .container { display: flex; }
-        .main-panel { flex: 3; }
-        .side-panel { flex: 1; margin-left: 20px; padding: 15px; background: #f9f9f9; border-radius: 5px; }
-        .tab-nav { display: flex; margin-bottom: 20px; border-bottom: 1px solid #ddd; }
-        .tab { padding: 10px 15px; margin-right: 5px; cursor: pointer; border: 1px solid #ddd; border-bottom: none; border-radius: 5px 5px 0 0; }
-        .tab.active { background: #f1f1f1; font-weight: bold; }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
-        .progress-container { margin-top: 15px; width: 100%; background-color: #f1f1f1; border-radius: 5px; }
-        .progress-bar { height: 20px; background-color: #4CAF50; width: 0%; border-radius: 5px; text-align: center; line-height: 20px; color: white; }
-        .file-list { max-height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin-bottom: 15px; border-radius: 5px; }
-        .file-item { padding: 8px; margin-bottom: 5px; background: #f9f9f9; border-radius: 3px; display: flex; justify-content: space-between; }
-        .file-item:hover { background: #e9f7ef; }
-        .file-item .remove { color: #f44336; cursor: pointer; font-weight: bold; }
-        .model-selection { border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 5px; background: #f9f9f9; }
-        .model-item { padding: 10px; margin-bottom: 8px; background: white; border-radius: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        .strategy-option { padding: 10px; margin-bottom: 10px; background: #f9f9f9; border: 1px solid #ddd; border-radius: 5px; cursor: pointer; }
-        .strategy-option:hover, .strategy-option.selected { background: #e1f5fe; border-color: #2196F3; }
-        .strategy-option.selected { border-width: 2px; }
-        .file-drop-area { 
-            border: 2px dashed #ccc; 
-            padding: 20px; 
-            text-align: center; 
-            background: #f8f8f8;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: background 0.3s;
-            margin-bottom: 15px;
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
         }
-        .file-drop-area:hover { 
-            background: #e8e8e8; 
+        .main-container {
+            display: flex;
+            flex-direction: column;
+        }
+        .file-upload-container {
+            border: 2px dashed #ccc;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        .file-upload-container:hover {
+            background-color: #f9f9f9;
             border-color: #aaa;
         }
-        .file-drop-area.highlight {
-            border-color: #2196F3;
-            background: #e3f2fd;
-        }
-        .collapsible {
-            background-color: #f1f1f1;
-            color: #333;
-            cursor: pointer;
+        .file-list {
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
             padding: 10px;
-            width: 100%;
-            border: none;
-            text-align: left;
-            outline: none;
+            min-height: 100px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .file-list-empty {
+            color: #999;
+            text-align: center;
+            padding: 20px;
+        }
+        .file-item {
+            padding: 10px;
             margin-bottom: 10px;
-        }
-        .collapsible:hover {
-            background-color: #ddd;
-        }
-        .collapsible:after {
-            content: '\002B';
-            color: #777;
-            font-weight: bold;
-            float: right;
-            margin-left: 5px;
-        }
-        .collapsible.active:after {
-            content: "\2212";
-        }
-        .collapsible-content {
-            padding: 0 18px;
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.2s ease-out;
+            border-radius: 4px;
             background-color: #f9f9f9;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
-        .model-controls { display: flex; align-items: center; }
-        .model-controls button { margin-left: 10px; }
-        .text-right { text-align: right; }
-        .language-group { display: flex; margin-bottom: 15px; }
-        .language-group > div { flex: 1; margin-right: 10px; }
-        .language-group > div:last-child { margin-right: 0; }
-        .cost-estimate { 
-            background: #e8f5e9; 
-            padding: 10px; 
-            border-radius: 5px; 
-            margin: 10px 0;
-            border-left: 4px solid #4caf50;
+        .file-item:hover {
+            background-color: #f0f0f0;
+        }
+        .file-name {
+            flex-grow: 1;
+        }
+        .file-status {
+            margin-left: 10px;
+            min-width: 100px;
+            text-align: right;
+        }
+        .file-remove {
+            margin-left: 10px;
+            color: #f44336;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .loading {
+            color: orange;
+            font-style: italic;
+        }
+        .success {
+            color: green;
+            font-weight: bold;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button.disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #upload-btn {
+            background-color: #2196F3;
+        }
+        #next-btn {
+            margin-top: 20px;
         }
     </style>
 </head>
 <body>
     <h1>AnyDataset Batch Processor</h1>
-    
-    <!-- Tab Navigation -->
-    <div class="tab-nav">
-        <div class="tab active" data-tab="upload">1. Upload Files</div>
-        <div class="tab" data-tab="models">2. Model Setup</div>
-        <div class="tab" data-tab="options">3. Processing Options</div>
-        <div class="tab" data-tab="execute">4. Execute</div>
-    </div>
-    
-    <!-- Main Content Area -->
-    <div class="container">
-        <div class="main-panel">
-            <!-- Tab 1: Upload Files -->
-            <div class="tab-content active" id="upload-tab">
-                <h2>Upload Files</h2>
-                <div id="file-drop-area" class="file-drop-area">
-                    <p>Drag & drop your files here or click to browse</p>
-                    <input type="file" id="file-input" multiple style="display: none;">
-                </div>
-                
-                <div id="file-list-container">
-                    <h3>Selected Files <span id="file-count">(0)</span></h3>
-                    <div id="file-list" class="file-list">
-                        <p id="no-files-message">No files selected yet.</p>
-                    </div>
-                </div>
-                
-                <div class="form-group" style="margin-top: 20px;">
-                    <button id="next-to-models" class="disabled">Next: Model Setup</button>
-                </div>
-            </div>
-            
-            <!-- Tab 2: Model Setup -->
-            <div class="tab-content" id="models-tab">
-                <h2>Model Setup</h2>
-                
-                <div class="form-group checkbox-group">
-                    <input type="checkbox" id="use-multiple-models">
-                    <label for="use-multiple-models">Use multiple models in parallel (Multi-model processing)</label>
-                </div>
-                
-                <div id="single-model-container" class="model-selection">
-                    <h3>Model Selection</h3>
-                    <div class="form-group">
-                        <label for="model-provider">AI Model Provider</label>
-                        <select id="model-provider">
-                            <option value="anthropic">Claude (Anthropic)</option>
-                            <option value="openai">OpenAI</option>
-                            <option value="mistral">Mistral AI</option>
-                            <option value="lmstudio">LM Studio (Local)</option>
-                        </select>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="model-name">Model</label>
-                        <select id="model-name"></select>
-                    </div>
-                    
-                    <div id="lmstudio-settings" style="display: none;">
-                        <div class="form-group">
-                            <label for="base-url">LM Studio URL</label>
-                            <input type="text" id="base-url" value="http://localhost:1234">
-                        </div>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="api-key">API Key (Optional)</label>
-                        <input type="password" id="api-key" placeholder="Will use environment variable if not provided">
-                    </div>
-                </div>
-                
-                <div id="multi-model-container" class="model-selection" style="display: none;">
-                    <h3>Multiple Models Configuration</h3>
-                    <p>Configure multiple models to process your files in parallel.</p>
-                    
-                    <div id="models-list">
-                        <!-- Models will be added here dynamically -->
-                        <div class="model-item">
-                            <div class="model-controls">
-                                <div style="flex: 1;">Model 1</div>
-                                <button class="remove-model danger" style="display: none;">Remove</button>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label>Provider</label>
-                                <select class="multi-provider">
-                                    <option value="anthropic">Claude (Anthropic)</option>
-                                    <option value="openai">OpenAI</option>
-                                    <option value="mistral">Mistral AI</option>
-                                    <option value="lmstudio">LM Studio (Local)</option>
-                                </select>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label>Model</label>
-                                <select class="multi-model"></select>
-                            </div>
-                            
-                            <div class="multi-lmstudio-settings" style="display: none;">
-                                <div class="form-group">
-                                    <label>LM Studio URL</label>
-                                    <input type="text" class="multi-base-url" value="http://localhost:1234">
-                                </div>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label>API Key (Optional)</label>
-                                <input type="password" class="multi-api-key" placeholder="Will use environment variable if not provided">
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="text-right" style="margin-top: 15px;">
-                        <button id="add-model">Add Another Model</button>
-                    </div>
-                    
-                    <div class="form-group" style="margin-top: 20px;">
-                        <label for="allocation-strategy">Load Allocation Strategy</label>
-                        <select id="allocation-strategy">
-                            <option value="round-robin">Round Robin</option>
-                            <option value="file-size">File Size Based</option>
-                            <option value="file-type">File Type Based</option>
-                            <option value="cost-optimize">Cost Optimization</option>
-                        </select>
-                    </div>
-                </div>
-                
-                <div class="form-group" style="margin-top: 20px;">
-                    <button id="back-to-upload" class="secondary">Back: Upload Files</button>
-                    <button id="next-to-options">Next: Processing Options</button>
-                </div>
-            </div>
-            
-            <!-- Tab 3: Processing Options -->
-            <div class="tab-content" id="options-tab">
-                <h2>Processing Options</h2>
-                
-                <div class="language-group">
-                    <div class="form-group">
-                        <label for="input-language">Input Language</label>
-                        <select id="input-language">
-                            <option value="pl" selected>Polski</option>
-                            <option value="en">English</option>
-                            <option value="de">Deutsch</option>
-                            <option value="fr">Français</option>
-                            <option value="es">Español</option>
-                            <option value="it">Italiano</option>
-                            <option value="auto">Auto-detect</option>
-                        </select>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="output-language">Output Language</label>
-                        <select id="output-language">
-                            <option value="pl" selected>Polski</option>
-                            <option value="en">English</option>
-                            <option value="de">Deutsch</option>
-                            <option value="fr">Français</option>
-                            <option value="es">Español</option>
-                            <option value="it">Italiano</option>
-                            <option value="same">Same as input</option>
-                        </select>
-                    </div>
-                </div>
-                
-                <div class="form-group">
-                    <h3>Batch Strategy</h3>
-                    <div class="strategy-options">
-                        <div class="strategy-option selected" data-strategy="yolo">
-                            <h4>YoLo Strategy</h4>
-                            <p>Fully automated processing without manual intervention. Automatic keyword extraction and processing.</p>
-                        </div>
-                        <div class="strategy-option" data-strategy="paranoid">
-                            <h4>Paranoid Strategy</h4>
-                            <p>Review progress periodically with checkpoints every X files. Pause for manual verification.</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div id="paranoid-settings" style="display: none;">
-                    <div class="form-group">
-                        <label for="check-interval">Check every X files</label>
-                        <input type="number" id="check-interval" value="5" min="1" max="100">
-                    </div>
-                </div>
-                
-                <div class="form-group">
-                    <h3>Output Format</h3>
-                    <div class="strategy-options">
-                        <div class="strategy-option selected" data-format="standard">
-                            <h4>Standard Dataset</h4>
-                            <p>Instruction/input/output format for general fine-tuning datasets</p>
-                        </div>
-                        <div class="strategy-option" data-format="qa">
-                            <h4>Question & Answer</h4>
-                            <p>Generate Q&A pairs from document content</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="form-group">
-                    <label for="system-prompt">System Prompt (Optional)</label>
-                    <textarea id="system-prompt" rows="4" placeholder="Custom system prompt to give context to the AI model (e.g., 'You are analyzing veterinary articles...')"></textarea>
-                </div>
-                
-                <button class="collapsible">Advanced Options</button>
-                <div class="collapsible-content">
-                    <div style="padding: 15px 0;">
-                        <div class="form-group checkbox-group">
-                            <input type="checkbox" id="anonymize">
-                            <label for="anonymize">Anonymize Personal Information</label>
-                        </div>
-                        
-                        <div class="form-group checkbox-group">
-                            <input type="checkbox" id="reasoning" checked>
-                            <label for="reasoning">Include Reasoning</label>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="max-workers">Maximum Concurrent Files</label>
-                            <input type="range" id="max-workers" min="1" max="10" step="1" value="3">
-                            <div style="display: flex; justify-content: space-between;">
-                                <span>1</span>
-                                <span id="workers-value">3</span>
-                                <span>10</span>
-                            </div>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="train-split">Training/Validation Split</label>
-                            <input type="range" id="train-split" min="0.5" max="1.0" step="0.05" value="0.8">
-                            <div style="display: flex; justify-content: space-between;">
-                                <span>50/50</span>
-                                <span id="split-value">80/20</span>
-                                <span>100/0</span>
-                            </div>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="chunk-size">Chunk Size (characters)</label>
-                            <input type="number" id="chunk-size" value="2000" min="500" max="8000">
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="overlap-size">Chunk Overlap (characters)</label>
-                            <input type="number" id="overlap-size" value="200" min="0" max="1000">
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="temperature">Temperature (0.0-1.0)</label>
-                            <input type="range" id="temperature" min="0" max="1" step="0.05" value="0.7">
-                            <div style="display: flex; justify-content: space-between;">
-                                <span>0.0</span>
-                                <span id="temperature-value">0.7</span>
-                                <span>1.0</span>
-                            </div>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="max-tokens">Max Tokens (0 = no limit)</label>
-                            <input type="number" id="max-tokens" value="0" min="0" max="8000">
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="form-group" style="margin-top: 20px;">
-                    <button id="back-to-models" class="secondary">Back: Model Setup</button>
-                    <button id="next-to-execute">Next: Execute</button>
-                </div>
-            </div>
-            
-            <!-- Tab 4: Execute -->
-            <div class="tab-content" id="execute-tab">
-                <h2>Execute Batch Processing</h2>
-                
-                <div class="batch-summary">
-                    <h3>Batch Summary</h3>
-                    <p><strong>Files to process:</strong> <span id="summary-file-count">0</span></p>
-                    <p><strong>Models:</strong> <span id="summary-models">None selected</span></p>
-                    <p><strong>Strategy:</strong> <span id="summary-strategy">YoLo (fully automated)</span></p>
-                    <p><strong>Format:</strong> <span id="summary-format">Standard Dataset</span></p>
-                    <p><strong>Languages:</strong> <span id="summary-languages">Input: Polski, Output: Polski</span></p>
-                    
-                    <div class="cost-estimate">
-                        <h4>Estimated Processing</h4>
-                        <p><strong>Estimated time:</strong> <span id="estimated-time">Calculating...</span></p>
-                        <p><strong>Approximate cost:</strong> <span id="estimated-cost">Calculating...</span></p>
-                    </div>
-                </div>
-                
-                <div class="form-group" style="margin-top: 20px;">
-                    <button id="back-to-options" class="secondary">Back: Processing Options</button>
-                    <button id="start-processing">Start Processing</button>
-                </div>
-                
-                <div id="processing-status" class="status" style="display: none;">
-                    <h3>Processing Status: <span id="status-text">Initializing...</span></h3>
-                    <div class="progress-container">
-                        <div id="batch-progress" class="progress-bar">0%</div>
-                    </div>
-                    <div style="margin-top: 10px;">
-                        <p>Currently processing: <span id="current-file">None</span></p>
-                        <p>Completed files: <span id="completed-files">0</span> / <span id="total-files">0</span></p>
-                    </div>
-                    <div id="download-container" style="display: none; margin-top: 15px;">
-                        <button id="download-jsonl">Download JSONL</button>
-                        <button id="download-zip">Download ZIP</button>
-                    </div>
-                </div>
-            </div>
+    <div class="main-container">
+        <h2>Upload Files</h2>
+        
+        <div class="file-upload-container" id="upload-area">
+            <p>Drag & drop your files here or</p>
+            <button id="upload-btn">Choose Files</button>
+            <input type="file" id="file-input" multiple style="display: none;" accept=".txt,.md,.pdf,.docx,.csv,.json,.jsonl,.yaml,.yml,.wav,.mp3">
         </div>
         
-        <!-- Side Panel -->
-        <div class="side-panel">
-            <h3>Batch Processing Guide</h3>
-            <div id="upload-help" class="help-text">
-                <p><strong>Step 1: Upload Files</strong></p>
-                <p>Upload your files by dragging them into the drop area or clicking to browse. Supported formats:</p>
-                <ul>
-                    <li>Text: .txt, .md</li>
-                    <li>Documents: .pdf, .docx</li>
-                    <li>Data: .csv, .json, .jsonl, .yaml</li>
-                    <li>Audio: .wav, .mp3</li>
-                </ul>
-                <p>You can select multiple files for batch processing.</p>
-            </div>
-            
-            <div id="models-help" class="help-text" style="display: none;">
-                <p><strong>Step 2: Model Setup</strong></p>
-                <p>Choose how models will process your files:</p>
-                <ul>
-                    <li><strong>Single Model:</strong> All files processed by one model</li>
-                    <li><strong>Multi-model:</strong> Distribute files across multiple models in parallel for faster processing</li>
-                </ul>
-                <p>Multi-model processing can significantly reduce total processing time.</p>
-            </div>
-            
-            <div id="options-help" class="help-text" style="display: none;">
-                <p><strong>Step 3: Processing Options</strong></p>
-                <p>Configure language and processing settings:</p>
-                <ul>
-                    <li><strong>Languages:</strong> Set input and output languages</li>
-                    <li><strong>YoLo Strategy:</strong> Fully automated processing</li>
-                    <li><strong>Paranoid Strategy:</strong> Pause for verification</li>
-                    <li><strong>System Prompt:</strong> Add context for the AI model</li>
-                </ul>
-                <p>Advanced options let you fine-tune the processing parameters.</p>
-            </div>
-            
-            <div id="execute-help" class="help-text" style="display: none;">
-                <p><strong>Step 4: Execute</strong></p>
-                <p>Review your batch configuration:</p>
-                <ul>
-                    <li>Verify number of files and selected models</li>
-                    <li>Check processing strategy and format</li>
-                    <li>Review estimated processing time and cost</li>
-                </ul>
-                <p>Click "Start Processing" when you're ready to begin.</p>
-            </div>
+        <h3>Selected Files <span id="file-count">(0)</span></h3>
+        <div class="file-list" id="file-list">
+            <div class="file-list-empty">No files selected yet.</div>
         </div>
+        
+        <button id="next-btn" class="disabled">Next: Model Setup</button>
     </div>
-    
+
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Elements
-            const tabs = document.querySelectorAll('.tab');
-            const tabContents = document.querySelectorAll('.tab-content');
-            const fileDropArea = document.getElementById('file-drop-area');
+            const uploadArea = document.getElementById('upload-area');
             const fileInput = document.getElementById('file-input');
             const fileList = document.getElementById('file-list');
-            const fileCount = document.getElementById('file-count');
-            const noFilesMessage = document.getElementById('no-files-message');
-            const nextToModels = document.getElementById('next-to-models');
-            const backToUpload = document.getElementById('back-to-upload');
-            const nextToOptions = document.getElementById('next-to-options');
-            const backToModels = document.getElementById('back-to-models');
-            const nextToExecute = document.getElementById('next-to-execute');
-            const backToOptions = document.getElementById('back-to-options');
-            const startProcessing = document.getElementById('start-processing');
-            const modelProvider = document.getElementById('model-provider');
-            const modelName = document.getElementById('model-name');
-            const useMultipleModels = document.getElementById('use-multiple-models');
-            const singleModelContainer = document.getElementById('single-model-container');
-            const multiModelContainer = document.getElementById('multi-model-container');
-            const lmStudioSettings = document.getElementById('lmstudio-settings');
-            const strategyOptions = document.querySelectorAll('.strategy-option');
-            const paranoidSettings = document.getElementById('paranoid-settings');
-            const trainSplit = document.getElementById('train-split');
-            const splitValue = document.getElementById('split-value');
-            const maxWorkers = document.getElementById('max-workers');
-            const workersValue = document.getElementById('workers-value');
-            const temperature = document.getElementById('temperature');
-            const temperatureValue = document.getElementById('temperature-value');
-            const processingStatus = document.getElementById('processing-status');
-            const statusText = document.getElementById('status-text');
-            const batchProgress = document.getElementById('batch-progress');
-            const currentFile = document.getElementById('current-file');
-            const completedFiles = document.getElementById('completed-files');
-            const totalFiles = document.getElementById('total-files');
-            const downloadContainer = document.getElementById('download-container');
-            const helpTexts = document.querySelectorAll('.help-text');
-            const addModel = document.getElementById('add-model');
-            const modelsList = document.getElementById('models-list');
-            const inputLanguage = document.getElementById('input-language');
-            const outputLanguage = document.getElementById('output-language');
-            const summaryFileCount = document.getElementById('summary-file-count');
-            const summaryModels = document.getElementById('summary-models');
-            const summaryStrategy = document.getElementById('summary-strategy');
-            const summaryFormat = document.getElementById('summary-format');
-            const summaryLanguages = document.getElementById('summary-languages');
-            const estimatedTime = document.getElementById('estimated-time');
-            const estimatedCost = document.getElementById('estimated-cost');
+            const uploadButton = document.getElementById('upload-btn');
+            const nextButton = document.getElementById('next-btn');
+            const fileCountSpan = document.getElementById('file-count');
             
-            // State management
-            let currentTab = 'upload';
+            // Add document-level drag and drop handlers for better drag and drop support
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                document.body.addEventListener(eventName, function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log(`Document ${eventName} event captured`);
+                }, false);
+            });
+            
+            // Store uploaded files info
             let uploadedFiles = [];
             let uploadedFilePaths = [];
-            let selectedStrategy = 'yolo';
-            let selectedFormat = 'standard';
-            let jobId = null;
-            let socket = null;
             
-            // Initialize model options
-            updateModelOptions(modelProvider.value, modelName);
-            
-            // Tab navigation
-            function showTab(tabId) {
-                // Update tab buttons
-                tabs.forEach(tab => {
-                    if (tab.dataset.tab === tabId) {
-                        tab.classList.add('active');
-                    } else {
-                        tab.classList.remove('active');
-                    }
-                });
-                
-                // Update tab content
-                tabContents.forEach(content => {
-                    if (content.id === tabId + '-tab') {
-                        content.classList.add('active');
-                    } else {
-                        content.classList.remove('active');
-                    }
-                });
-                
-                // Update help text
-                helpTexts.forEach(help => {
-                    if (help.id === tabId + '-help') {
-                        help.style.display = 'block';
-                    } else {
-                        help.style.display = 'none';
-                    }
-                });
-                
-                // Update summary in execute tab
-                if (tabId === 'execute') {
-                    updateSummary();
+            // Handle click on upload area or button
+            uploadArea.addEventListener('click', function(e) {
+                if (e.target !== uploadButton) {
+                    fileInput.click();
                 }
-                
-                currentTab = tabId;
-            }
+            });
             
-            // File Drop Area Event Handlers
+            uploadButton.addEventListener('click', function(e) {
+                e.stopPropagation();
+                fileInput.click();
+            });
+            
+            // Handle file selection
+            fileInput.addEventListener('change', function() {
+                if (fileInput.files.length > 0) {
+                    handleFiles(fileInput.files);
+                }
+            });
+            
+            // Handle drag and drop
             ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-                fileDropArea.addEventListener(eventName, preventDefaults, false);
+                uploadArea.addEventListener(eventName, preventDefaults, false);
             });
             
             function preventDefaults(e) {
@@ -573,698 +171,203 @@
                 e.stopPropagation();
             }
             
-            ['dragenter', 'dragover'].forEach(eventName => {
-                fileDropArea.addEventListener(eventName, highlight, false);
+            uploadArea.addEventListener('dragenter', function() {
+                uploadArea.style.backgroundColor = '#f0f8ff';
+                uploadArea.style.borderColor = '#2196F3';
             });
             
-            ['dragleave', 'drop'].forEach(eventName => {
-                fileDropArea.addEventListener(eventName, unhighlight, false);
+            uploadArea.addEventListener('dragleave', function() {
+                uploadArea.style.backgroundColor = '';
+                uploadArea.style.borderColor = '#ccc';
             });
             
-            function highlight() {
-                fileDropArea.classList.add('highlight');
-            }
-            
-            function unhighlight() {
-                fileDropArea.classList.remove('highlight');
-            }
-            
-            fileDropArea.addEventListener('drop', handleDrop, false);
-            fileDropArea.addEventListener('click', () => fileInput.click());
-            fileInput.addEventListener('change', handleFiles);
-            
-            function handleDrop(e) {
+            uploadArea.addEventListener('drop', function(e) {
+                uploadArea.style.backgroundColor = '';
+                uploadArea.style.borderColor = '#ccc';
+                
                 const dt = e.dataTransfer;
                 const files = dt.files;
                 
                 if (files.length > 0) {
                     handleFiles(files);
                 }
-            }
+            });
             
-            function handleFiles(event) {
-                let files;
-                if (event.target && event.target.files) {
-                    files = event.target.files;
-                } else {
-                    files = event;
+            // Handle multiple files
+            function handleFiles(files) {
+                // Remove empty message if present
+                const emptyMessage = fileList.querySelector('.file-list-empty');
+                if (emptyMessage) {
+                    fileList.removeChild(emptyMessage);
                 }
                 
-                // Upload each file
+                // Process each file
                 for (let i = 0; i < files.length; i++) {
                     uploadFile(files[i]);
                 }
             }
             
+            // Upload single file
             async function uploadFile(file) {
-                console.log('Starting batch file upload for:', file.name);
+                // Generate unique ID for this file
+                const fileId = 'file-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                
+                // Create file item element
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+                fileItem.id = fileId;
+                fileItem.innerHTML = `
+                    <div class="file-name">${file.name} (${formatFileSize(file.size)})</div>
+                    <div class="file-status loading">Uploading...</div>
+                `;
+                fileList.appendChild(fileItem);
+                
+                // Create form data
                 const formData = new FormData();
                 formData.append('file', file);
                 
                 try {
-                    console.log('Sending POST request to /upload');
+                    console.log('Starting file upload:', file.name);
+                    
+                    // Upload the file
+                    console.log('Sending upload request for:', file.name);
                     const response = await fetch('/upload', {
                         method: 'POST',
                         body: formData
                     });
                     
-                    console.log('Upload response status:', response.status);
+                    console.log('Upload response status for', file.name, ':', response.status);
+                    console.log('Upload response headers for', file.name, ':', [...response.headers.entries()]);
+                    
+                    // Handle response
+                    const responseText = await response.text();
+                    console.log('Raw response for', file.name, ':', responseText);
+                    
+                    let data;
+                    try {
+                        data = JSON.parse(responseText);
+                    } catch (e) {
+                        console.error('Failed to parse JSON response for', file.name, ':', e);
+                        throw new Error('Invalid server response format');
+                    }
                     
                     if (!response.ok) {
-                        const errorText = await response.text();
-                        console.error('Upload error details:', errorText);
-                        throw new Error(`File upload failed with status ${response.status}`);
+                        throw new Error(data.detail || 'Upload failed');
                     }
                     
-                    const data = await response.json();
-                    console.log('Upload response data:', data);
+                    // Successfully uploaded
+                    const filePath = data.file_path;
                     
-                    // Add to uploaded files list
+                    // Add to arrays
                     uploadedFiles.push(file);
-                    uploadedFilePaths.push(data.file_path);
-                    console.log('File uploaded successfully:', data.file_path);
+                    uploadedFilePaths.push(filePath);
+                    
+                    // Update file count
+                    fileCountSpan.textContent = `(${uploadedFiles.length})`;
                     
                     // Update UI
-                    updateFileList();
+                    const fileItem = document.getElementById(fileId);
+                    fileItem.innerHTML = `
+                        <div class="file-name">${file.name} (${formatFileSize(file.size)})</div>
+                        <div class="file-status success">✓ Uploaded</div>
+                        <span class="file-remove" data-id="${fileId}" data-index="${uploadedFiles.length - 1}">×</span>
+                    `;
                     
-                    // Enable next button if files are uploaded
-                    if (uploadedFiles.length > 0) {
-                        nextToModels.classList.remove('disabled');
-                    }
+                    // Add event listener for remove button
+                    const removeButton = fileItem.querySelector('.file-remove');
+                    removeButton.addEventListener('click', function() {
+                        const id = this.getAttribute('data-id');
+                        const index = parseInt(this.getAttribute('data-index'));
+                        removeFile(id, index);
+                    });
+                    
+                    // Enable next button if at least one file is uploaded
+                    nextButton.classList.remove('disabled');
+                    
+                    console.log('File uploaded successfully:', file.name, 'Path:', filePath);
                     
                 } catch (error) {
-                    console.error('Error uploading file:', error);
-                    alert('Failed to upload file: ' + file.name);
-                }
-            }
-            
-            function updateFileList() {
-                if (uploadedFiles.length === 0) {
-                    fileList.innerHTML = '<p id="no-files-message">No files selected yet.</p>';
-                    fileCount.textContent = '(0)';
-                    return;
-                }
-                
-                // Clear the list first
-                fileList.innerHTML = '';
-                fileCount.textContent = `(${uploadedFiles.length})`;
-                
-                uploadedFiles.forEach((file, index) => {
-                    const fileItem = document.createElement('div');
-                    fileItem.className = 'file-item';
+                    console.error('Error uploading file:', file.name, error);
+                    
+                    // Update UI with error
+                    const fileItem = document.getElementById(fileId);
                     fileItem.innerHTML = `
-                        <div>${file.name} (${formatFileSize(file.size)})</div>
-                        <span class="remove" data-index="${index}">×</span>
+                        <div class="file-name">${file.name} (${formatFileSize(file.size)})</div>
+                        <div class="file-status error">Failed: ${error.message}</div>
+                        <span class="file-remove" data-id="${fileId}">×</span>
                     `;
-                    fileList.appendChild(fileItem);
-                });
-                
-                // Add remove event listeners
-                document.querySelectorAll('.file-item .remove').forEach(button => {
-                    button.addEventListener('click', function() {
-                        const index = parseInt(this.dataset.index);
-                        removeFile(index);
+                    
+                    // Add event listener for remove button
+                    const removeButton = fileItem.querySelector('.file-remove');
+                    removeButton.addEventListener('click', function() {
+                        const id = this.getAttribute('data-id');
+                        fileList.removeChild(document.getElementById(id));
+                        updateEmptyState();
                     });
-                });
-            }
-            
-            function removeFile(index) {
-                uploadedFiles.splice(index, 1);
-                uploadedFilePaths.splice(index, 1);
-                updateFileList();
-                
-                if (uploadedFiles.length === 0) {
-                    nextToModels.classList.add('disabled');
                 }
             }
             
+            // Remove file from list
+            function removeFile(id, index) {
+                // Remove from arrays if index is valid
+                if (index !== undefined && index >= 0 && index < uploadedFiles.length) {
+                    uploadedFiles.splice(index, 1);
+                    uploadedFilePaths.splice(index, 1);
+                    
+                    // Update indices for remaining items
+                    const removeButtons = document.querySelectorAll('.file-remove[data-index]');
+                    removeButtons.forEach(button => {
+                        const buttonIndex = parseInt(button.getAttribute('data-index'));
+                        if (buttonIndex > index) {
+                            button.setAttribute('data-index', buttonIndex - 1);
+                        }
+                    });
+                }
+                
+                // Remove element from DOM
+                fileList.removeChild(document.getElementById(id));
+                
+                // Update file count
+                fileCountSpan.textContent = `(${uploadedFiles.length})`;
+                
+                // Disable next button if no files left
+                if (uploadedFiles.length === 0) {
+                    nextButton.classList.add('disabled');
+                }
+                
+                // Check if list is empty
+                updateEmptyState();
+            }
+            
+            // Update empty state message
+            function updateEmptyState() {
+                if (fileList.children.length === 0) {
+                    const emptyMessage = document.createElement('div');
+                    emptyMessage.className = 'file-list-empty';
+                    emptyMessage.textContent = 'No files selected yet.';
+                    fileList.appendChild(emptyMessage);
+                }
+            }
+            
+            // File size formatter
             function formatFileSize(bytes) {
                 if (bytes < 1024) return bytes + ' bytes';
                 if (bytes < 1048576) return (bytes / 1024).toFixed(2) + ' KB';
                 return (bytes / 1048576).toFixed(2) + ' MB';
             }
             
-            // Model provider change handling
-            modelProvider.addEventListener('change', function() {
-                updateModelOptions(this.value, modelName);
-                
-                // Show/hide LM Studio settings
-                lmStudioSettings.style.display = this.value === 'lmstudio' ? 'block' : 'none';
-            });
-            
-            // Multi-model handling
-            useMultipleModels.addEventListener('change', function() {
-                if (this.checked) {
-                    singleModelContainer.style.display = 'none';
-                    multiModelContainer.style.display = 'block';
-                    
-                    // Ensure at least one model is added
-                    if (document.querySelectorAll('.model-item').length === 0) {
-                        addModelToList();
-                    }
-                } else {
-                    singleModelContainer.style.display = 'block';
-                    multiModelContainer.style.display = 'none';
-                }
-            });
-            
-            addModel.addEventListener('click', function() {
-                addModelToList();
-            });
-            
-            function addModelToList() {
-                const modelCount = document.querySelectorAll('.model-item').length;
-                const modelItem = document.createElement('div');
-                modelItem.className = 'model-item';
-                modelItem.innerHTML = `
-                    <div class="model-controls">
-                        <div style="flex: 1;">Model ${modelCount + 1}</div>
-                        <button class="remove-model danger">Remove</button>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>Provider</label>
-                        <select class="multi-provider">
-                            <option value="anthropic">Claude (Anthropic)</option>
-                            <option value="openai">OpenAI</option>
-                            <option value="mistral">Mistral AI</option>
-                            <option value="lmstudio">LM Studio (Local)</option>
-                        </select>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>Model</label>
-                        <select class="multi-model"></select>
-                    </div>
-                    
-                    <div class="multi-lmstudio-settings" style="display: none;">
-                        <div class="form-group">
-                            <label>LM Studio URL</label>
-                            <input type="text" class="multi-base-url" value="http://localhost:1234">
-                        </div>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>API Key (Optional)</label>
-                        <input type="password" class="multi-api-key" placeholder="Will use environment variable if not provided">
-                    </div>
-                `;
-                
-                modelsList.appendChild(modelItem);
-                
-                // Add event listeners
-                const provider = modelItem.querySelector('.multi-provider');
-                const model = modelItem.querySelector('.multi-model');
-                const lmSettings = modelItem.querySelector('.multi-lmstudio-settings');
-                
-                // Initialize model options
-                updateModelOptions(provider.value, model);
-                
-                provider.addEventListener('change', function() {
-                    updateModelOptions(this.value, model);
-                    lmSettings.style.display = this.value === 'lmstudio' ? 'block' : 'none';
-                });
-                
-                // Remove button
-                const removeButton = modelItem.querySelector('.remove-model');
-                removeButton.addEventListener('click', function() {
-                    modelItem.remove();
-                    
-                    // Update model numbers
-                    document.querySelectorAll('.model-item').forEach((item, idx) => {
-                        item.querySelector('.model-controls div').textContent = `Model ${idx + 1}`;
-                    });
-                    
-                    // Hide remove button if only one model left
-                    if (document.querySelectorAll('.model-item').length === 1) {
-                        document.querySelector('.remove-model').style.display = 'none';
-                    }
-                });
-                
-                // Show all remove buttons if more than one model
-                if (document.querySelectorAll('.model-item').length > 1) {
-                    document.querySelectorAll('.remove-model').forEach(btn => {
-                        btn.style.display = 'block';
-                    });
-                }
-            }
-            
-            function updateModelOptions(provider, selectElement) {
-                // Clear current options
-                selectElement.innerHTML = '';
-                
-                // This will be replaced by the server with dynamically generated model options
-                const availableModels = {
-                    "anthropic": [
-                        "claude-3-5-sonnet-20240620",
-                        "claude-3-opus-20240229",
-                        "claude-3-sonnet-20240229",
-                        "claude-3-haiku-20240307"
-                    ],
-                    "openai": [
-                        "gpt-4o",
-                        "gpt-4-turbo",
-                        "gpt-4",
-                        "gpt-3.5-turbo"
-                    ],
-                    "mistral": [
-                        "mistral-large-latest",
-                        "mistral-medium-latest",
-                        "mistral-small-latest"
-                    ],
-                    "lmstudio": [
-                        "local-model"
-                    ]
-                };
-                
-                // Add model options
-                const models = availableModels[provider] || [];
-                models.forEach(model => {
-                    const option = document.createElement('option');
-                    option.value = model;
-                    option.textContent = model;
-                    selectElement.appendChild(option);
-                });
-            }
-            
-            // Strategy options selection
-            strategyOptions.forEach(option => {
-                option.addEventListener('click', function() {
-                    const parent = this.parentElement;
-                    parent.querySelectorAll('.strategy-option').forEach(o => o.classList.remove('selected'));
-                    this.classList.add('selected');
-                    
-                    // Handle special behaviors
-                    if (parent.classList.contains('strategy-options')) {
-                        if (this.dataset.strategy) {
-                            selectedStrategy = this.dataset.strategy;
-                            paranoidSettings.style.display = selectedStrategy === 'paranoid' ? 'block' : 'none';
-                        }
-                        if (this.dataset.format) {
-                            selectedFormat = this.dataset.format;
-                        }
-                    }
-                });
-            });
-            
-            // Train/Validation split slider
-            trainSplit.addEventListener('input', function() {
-                const trainPercentage = Math.round(this.value * 100);
-                const validPercentage = 100 - trainPercentage;
-                splitValue.textContent = `${trainPercentage}/${validPercentage}`;
-            });
-            
-            // Max workers slider
-            maxWorkers.addEventListener('input', function() {
-                workersValue.textContent = this.value;
-            });
-            
-            // Temperature slider
-            temperature.addEventListener('input', function() {
-                temperatureValue.textContent = this.value;
-            });
-            
-            // Language selectors
-            inputLanguage.addEventListener('change', updateLanguageSummary);
-            outputLanguage.addEventListener('change', updateLanguageSummary);
-            
-            function updateLanguageSummary() {
-                const inputLang = inputLanguage.options[inputLanguage.selectedIndex].text;
-                let outputLang = outputLanguage.options[outputLanguage.selectedIndex].text;
-                
-                if (outputLanguage.value === 'same') {
-                    outputLang = 'Same as input';
-                }
-                
-                summaryLanguages.textContent = `Input: ${inputLang}, Output: ${outputLang}`;
-            }
-            
-            // Collapsible sections
-            const collapsibles = document.getElementsByClassName("collapsible");
-            for (let i = 0; i < collapsibles.length; i++) {
-                collapsibles[i].addEventListener("click", function() {
-                    this.classList.toggle("active");
-                    const content = this.nextElementSibling;
-                    if (content.style.maxHeight) {
-                        content.style.maxHeight = null;
-                    } else {
-                        content.style.maxHeight = content.scrollHeight + "px";
-                    }
-                });
-            }
-            
-            // Update summary in execute tab
-            function updateSummary() {
-                // Update file count
-                summaryFileCount.textContent = uploadedFiles.length;
-                
-                // Update models summary
-                if (useMultipleModels.checked) {
-                    const modelItems = document.querySelectorAll('.model-item');
-                    let modelsList = [];
-                    modelItems.forEach((item, idx) => {
-                        const providerEl = item.querySelector('.multi-provider');
-                        const modelEl = item.querySelector('.multi-model');
-                        const provider = providerEl.options[providerEl.selectedIndex].text;
-                        const model = modelEl.value;
-                        modelsList.push(`${provider} (${model})`);
-                    });
-                    summaryModels.textContent = modelsList.join(', ');
-                } else {
-                    const provider = modelProvider.options[modelProvider.selectedIndex].text;
-                    const model = modelName.value;
-                    summaryModels.textContent = `${provider} (${model})`;
-                }
-                
-                // Update strategy
-                summaryStrategy.textContent = selectedStrategy === 'yolo' ? 
-                    'YoLo (fully automated)' : 
-                    `Paranoid (check every ${document.getElementById('check-interval').value} files)`;
-                
-                // Update format
-                summaryFormat.textContent = selectedFormat === 'standard' ? 
-                    'Standard Dataset' : 'Question & Answer';
-                
-                // Update language summary
-                updateLanguageSummary();
-                
-                // Update estimates
-                calculateEstimates();
-            }
-            
-            function calculateEstimates() {
-                // Simplified estimation logic - could be more sophisticated in real app
-                const totalFiles = uploadedFiles.length;
-                const avgFileSizeMB = uploadedFiles.reduce((sum, file) => sum + file.size, 0) / (1024 * 1024) / totalFiles;
-                
-                let timePerFileSec;
-                let costPerMB;
-                
-                // Base time on average file size and model
-                if (useMultipleModels.checked) {
-                    const modelCount = document.querySelectorAll('.model-item').length;
-                    timePerFileSec = avgFileSizeMB * 20 / modelCount; // Rough estimate: 20 seconds per MB with parallel processing
-                } else {
-                    const modelType = modelName.value;
-                    if (modelType.includes('opus')) {
-                        timePerFileSec = avgFileSizeMB * 30; // Opus is slower but more powerful
-                        costPerMB = 0.15;
-                    } else if (modelType.includes('gpt-4')) {
-                        timePerFileSec = avgFileSizeMB * 25;
-                        costPerMB = 0.12;
-                    } else {
-                        timePerFileSec = avgFileSizeMB * 15; // Smaller models are faster
-                        costPerMB = 0.06;
-                    }
-                }
-                
-                // Calculate total processing time
-                const totalTimeSec = timePerFileSec * totalFiles;
-                let timeStr;
-                
-                if (totalTimeSec < 60) {
-                    timeStr = `${Math.ceil(totalTimeSec)} seconds`;
-                } else if (totalTimeSec < 3600) {
-                    timeStr = `${Math.ceil(totalTimeSec / 60)} minutes`;
-                } else {
-                    const hours = Math.floor(totalTimeSec / 3600);
-                    const minutes = Math.ceil((totalTimeSec % 3600) / 60);
-                    timeStr = `${hours} hours, ${minutes} minutes`;
-                }
-                
-                // Calculate total cost (very rough estimate)
-                const totalCost = avgFileSizeMB * totalFiles * (costPerMB || 0.1);
-                const costStr = totalCost < 1 ? 
-                    `$${totalCost.toFixed(2)}` : 
-                    `$${Math.ceil(totalCost)}`;
-                
-                estimatedTime.textContent = timeStr;
-                estimatedCost.textContent = costStr;
-            }
-            
-            // Process batch
-            async function processBatch() {
-                if (uploadedFilePaths.length === 0) {
-                    alert('Please upload files first');
+            // Next button functionality
+            nextButton.addEventListener('click', function() {
+                if (uploadedFiles.length === 0 || nextButton.classList.contains('disabled')) {
                     return;
                 }
                 
-                processingStatus.style.display = 'block';
-                statusText.textContent = 'Initializing...';
-                batchProgress.style.width = '0%';
-                batchProgress.textContent = '0%';
-                currentFile.textContent = 'Initializing...';
-                completedFiles.textContent = '0';
-                totalFiles.textContent = uploadedFilePaths.length;
-                downloadContainer.style.display = 'none';
+                // Store file paths in localStorage
+                localStorage.setItem('batchFilePaths', JSON.stringify(uploadedFilePaths));
+                localStorage.setItem('batchFileCount', uploadedFiles.length);
                 
-                // Prepare form data
-                const formData = new FormData();
-                formData.append('file_paths', JSON.stringify(uploadedFilePaths));
-                formData.append('conversion_type', selectedFormat === 'standard' ? 'standard' : 'articles');
-                
-                // Model settings
-                if (useMultipleModels.checked) {
-                    // Multi-model configuration (would be handled differently in real app)
-                    const modelItems = document.querySelectorAll('.model-item');
-                    const primaryModel = modelItems[0];
-                    const provider = primaryModel.querySelector('.multi-provider').value;
-                    const model = primaryModel.querySelector('.multi-model').value;
-                    const apiKey = primaryModel.querySelector('.multi-api-key').value;
-                    
-                    formData.append('model_provider', provider);
-                    formData.append('model_name', model);
-                    if (apiKey) formData.append('api_key', apiKey);
-                    
-                    if (provider === 'lmstudio') {
-                        const baseUrl = primaryModel.querySelector('.multi-base-url').value;
-                        formData.append('base_url', baseUrl);
-                    }
-                    
-                    // In real app, we'd pass the full model list for multi-model processing
-                    const modelsConfig = [];
-                    modelItems.forEach(item => {
-                        modelsConfig.push({
-                            provider: item.querySelector('.multi-provider').value,
-                            model: item.querySelector('.multi-model').value,
-                            api_key: item.querySelector('.multi-api-key').value,
-                            base_url: item.querySelector('.multi-provider').value === 'lmstudio' ? 
-                                item.querySelector('.multi-base-url').value : null
-                        });
-                    });
-                    
-                    // Add multi-model config as part of additional options
-                    const additionalOptions = {
-                        models: modelsConfig,
-                        multi_model: true,
-                        allocation_strategy: document.getElementById('allocation-strategy').value
-                    };
-                    formData.append('additional_options_json', JSON.stringify(additionalOptions));
-                } else {
-                    // Single model
-                    formData.append('model_provider', modelProvider.value);
-                    formData.append('model_name', modelName.value);
-                    formData.append('api_key', document.getElementById('api-key').value);
-                    
-                    if (modelProvider.value === 'lmstudio') {
-                        formData.append('base_url', document.getElementById('base-url').value);
-                    }
-                }
-                
-                // General options
-                formData.append('max_chunks', 0); // Process all chunks
-                formData.append('anonymize', document.getElementById('anonymize').checked);
-                formData.append('train_split', trainSplit.value);
-                formData.append('keyword_extraction', true);
-                formData.append('chunk_size', document.getElementById('chunk-size').value);
-                formData.append('overlap_size', document.getElementById('overlap-size').value);
-                formData.append('max_concurrent', document.getElementById('max-workers').value);
-                
-                // System prompt if provided
-                const systemPrompt = document.getElementById('system-prompt').value;
-                if (systemPrompt) {
-                    formData.append('system_prompt', systemPrompt);
-                }
-                
-                // Language settings and other options
-                const additionalOptions = {
-                    reasoning: document.getElementById('reasoning').checked,
-                    temperature: parseFloat(temperature.value),
-                    max_tokens: parseInt(document.getElementById('max-tokens').value),
-                    batch_strategy: selectedStrategy,
-                    input_language: inputLanguage.value,
-                    output_language: outputLanguage.value,
-                    check_interval: selectedStrategy === 'paranoid' ? 
-                        parseInt(document.getElementById('check-interval').value) : 0
-                };
-                
-                // Add or update additional options
-                if (formData.has('additional_options_json')) {
-                    const existingOptions = JSON.parse(formData.get('additional_options_json'));
-                    formData.set('additional_options_json', JSON.stringify({
-                        ...existingOptions,
-                        ...additionalOptions
-                    }));
-                } else {
-                    formData.append('additional_options_json', JSON.stringify(additionalOptions));
-                }
-                
-                try {
-                    const response = await fetch('/batch-convert', {
-                        method: 'POST',
-                        body: formData
-                    });
-                    
-                    if (!response.ok) {
-                        throw new Error('Failed to start batch processing');
-                    }
-                    
-                    const data = await response.json();
-                    jobId = data.job_id;
-                    
-                    // Connect to WebSocket for real-time updates
-                    connectWebSocket(jobId);
-                    
-                    // Start polling for progress
-                    pollProgress(jobId);
-                } catch (error) {
-                    console.error('Error starting batch processing:', error);
-                    statusText.textContent = 'Error: ' + error.message;
-                }
-            }
-            
-            // WebSocket connection
-            function connectWebSocket(id) {
-                if (socket && socket.readyState === WebSocket.OPEN) {
-                    socket.close();
-                }
-                
-                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                const wsUrl = `${protocol}//${window.location.host}/ws/${id}`;
-                socket = new WebSocket(wsUrl);
-                
-                socket.onopen = function() {
-                    console.log('WebSocket connected for job:', id);
-                };
-                
-                socket.onmessage = function(event) {
-                    const data = JSON.parse(event.data);
-                    updateProgress(id, data);
-                };
-                
-                socket.onerror = function(error) {
-                    console.error('WebSocket error:', error);
-                };
-                
-                socket.onclose = function() {
-                    console.log('WebSocket disconnected');
-                };
-            }
-            
-            // Poll progress
-            function pollProgress(id) {
-                fetch('/progress/' + id)
-                    .then(response => response.json())
-                    .then(data => {
-                        updateProgress(id, data);
-                        
-                        // Continue polling if not completed
-                        if (!data.completed && data.status !== 'error') {
-                            setTimeout(() => pollProgress(id), 2000);
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error polling progress:', error);
-                        setTimeout(() => pollProgress(id), 5000);
-                    });
-            }
-            
-            // Update progress display
-            function updateProgress(id, data) {
-                statusText.textContent = data.message || 'Processing...';
-                
-                if (data.progress !== undefined) {
-                    batchProgress.style.width = data.progress + '%';
-                    batchProgress.textContent = data.progress + '%';
-                }
-                
-                if (data.current_file) {
-                    currentFile.textContent = data.current_file;
-                }
-                
-                if (data.completed_files !== undefined) {
-                    completedFiles.textContent = data.completed_files;
-                }
-                
-                if (data.total_files !== undefined) {
-                    totalFiles.textContent = data.total_files;
-                }
-                
-                if (data.completed) {
-                    statusText.textContent = 'Processing completed!';
-                    downloadContainer.style.display = 'block';
-                } else if (data.status === 'error') {
-                    statusText.textContent = 'Error: ' + data.message;
-                }
-            }
-            
-            // Tab navigation buttons
-            tabs.forEach(tab => {
-                tab.addEventListener('click', function() {
-                    // Only allow clicking on already activated tabs or next tab if previous completed
-                    const tabId = this.dataset.tab;
-                    const tabIndex = Array.from(tabs).indexOf(this);
-                    const currentTabIndex = Array.from(tabs).findIndex(t => t.classList.contains('active'));
-                    
-                    if (tabIndex === currentTabIndex + 1 && !this.classList.contains('disabled')) {
-                        showTab(tabId);
-                    } else if (tabIndex <= currentTabIndex) {
-                        showTab(tabId);
-                    }
-                });
-            });
-            
-            nextToModels.addEventListener('click', function() {
-                if (this.classList.contains('disabled')) return;
-                showTab('models');
-            });
-            
-            backToUpload.addEventListener('click', function() {
-                showTab('upload');
-            });
-            
-            nextToOptions.addEventListener('click', function() {
-                showTab('options');
-            });
-            
-            backToModels.addEventListener('click', function() {
-                showTab('models');
-            });
-            
-            nextToExecute.addEventListener('click', function() {
-                showTab('execute');
-                updateSummary();
-            });
-            
-            backToOptions.addEventListener('click', function() {
-                showTab('options');
-            });
-            
-            startProcessing.addEventListener('click', function() {
-                processBatch();
-            });
-            
-            // Download buttons
-            document.getElementById('download-jsonl').addEventListener('click', function() {
-                if (jobId) {
-                    window.location.href = '/download/' + jobId + '?format=jsonl';
-                }
-            });
-            
-            document.getElementById('download-zip').addEventListener('click', function() {
-                if (jobId) {
-                    window.location.href = '/download/' + jobId + '?format=zip';
-                }
+                // Navigate to prepare data page
+                window.location.href = '/prepare?batch=true';
             });
         });
     </script>

@@ -3,378 +3,133 @@
 <head>
     <title>AnyDataset Processor</title>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; }
-        h1, h2, h3 { color: #333; }
-        .form-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; }
-        input, select, textarea { width: 100%; padding: 8px; box-sizing: border-box; }
-        .checkbox-group { display: flex; align-items: center; }
-        .checkbox-group input[type="checkbox"] { width: auto; margin-right: 10px; }
-        .checkbox-group label { display: inline; font-weight: normal; }
-        button { background: #4CAF50; color: white; padding: 10px 15px; border: none; cursor: pointer; margin-right: 10px; }
-        button.secondary { background: #607D8B; }
-        button.danger { background: #F44336; }
-        button.disabled { background: #cccccc; cursor: not-allowed; }
-        .status { margin-top: 20px; padding: 15px; background: #f1f1f1; }
-        .container { display: flex; }
-        .main-panel { flex: 3; }
-        .side-panel { flex: 1; margin-left: 20px; padding: 15px; background: #f9f9f9; border-radius: 5px; }
-        .step-nav { display: flex; margin-bottom: 20px; border-bottom: 1px solid #ddd; }
-        .step { padding: 10px 15px; margin-right: 5px; cursor: pointer; border: 1px solid #ddd; border-bottom: none; border-radius: 5px 5px 0 0; }
-        .step.active { background: #f1f1f1; font-weight: bold; }
-        .step.disabled { color: #999; cursor: not-allowed; }
-        .step-content { display: none; }
-        .step-content.active { display: block; }
-        .progress-container { margin-top: 15px; width: 100%; background-color: #f1f1f1; border-radius: 5px; }
-        .progress-bar { height: 20px; background-color: #4CAF50; width: 0%; border-radius: 5px; text-align: center; line-height: 20px; color: white; }
-        .file-info { padding: 15px; background: #e9f7ef; border-radius: 5px; margin-bottom: 15px; }
-        .keyword-tag { display: inline-block; background: #e1f5fe; padding: 6px 12px; margin: 4px; border-radius: 20px; }
-        .keyword-tag .remove { margin-left: 8px; color: #f44336; cursor: pointer; font-weight: bold; }
-        .format-option { padding: 10px; margin-bottom: 10px; background: #f9f9f9; border: 1px solid #ddd; border-radius: 5px; cursor: pointer; }
-        .format-option:hover, .format-option.selected { background: #e1f5fe; border-color: #2196F3; }
-        .format-option.selected { border-width: 2px; }
-        .preview-container { margin-top: 15px; max-height: 300px; overflow-y: auto; padding: 15px; background: #f5f5f5; border-radius: 5px; white-space: pre-wrap; }
-        #file-drop-area { 
-            border: 2px dashed #ccc; 
-            padding: 20px; 
-            text-align: center; 
-            background: #f8f8f8;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: background 0.3s;
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
         }
-        #file-drop-area:hover { 
-            background: #e8e8e8; 
+        .main-container {
+            display: flex;
+            flex-direction: column;
+        }
+        .file-upload-container {
+            border: 2px dashed #ccc;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        .file-upload-container:hover {
+            background-color: #f9f9f9;
             border-color: #aaa;
         }
-        #file-drop-area.highlight {
-            border-color: #2196F3;
-            background: #e3f2fd;
+        .file-list {
+            margin-top: 20px;
         }
-        .collapsible {
-            background-color: #f1f1f1;
-            color: #333;
-            cursor: pointer;
+        .file-item {
+            border: 1px solid #ddd;
             padding: 10px;
-            width: 100%;
-            border: none;
-            text-align: left;
-            outline: none;
             margin-bottom: 10px;
+            border-radius: 4px;
         }
-        .collapsible:hover {
-            background-color: #ddd;
+        .loading {
+            color: orange;
+            font-style: italic;
         }
-        .collapsible:after {
-            content: '\002B';
-            color: #777;
+        .success {
+            color: green;
             font-weight: bold;
-            float: right;
-            margin-left: 5px;
         }
-        .collapsible.active:after {
-            content: "\2212";
+        .error {
+            color: red;
+            font-weight: bold;
         }
-        .collapsible-content {
-            padding: 0 18px;
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.2s ease-out;
-            background-color: #f9f9f9;
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button.disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #upload-btn {
+            background-color: #2196F3;
+        }
+        #next-btn {
+            margin-top: 20px;
         }
     </style>
 </head>
 <body>
     <h1>AnyDataset Processor</h1>
-    
-    <!-- Process Steps Navigation -->
-    <div class="step-nav">
-        <div class="step active" data-step="upload">1. Upload File</div>
-        <div class="step disabled" data-step="keywords">2. Keywords</div>
-        <div class="step disabled" data-step="process">3. Process Options</div>
-    </div>
-    
-    <!-- Main Content Area -->
-    <div class="container">
-        <div class="main-panel">
-            <!-- Step 1: Upload File -->
-            <div class="step-content active" id="upload-step">
-                <h2>Upload File</h2>
-                <div id="file-drop-area">
-                    <p>Drag & drop your file here or click to browse</p>
-                    <input type="file" id="file-input" style="display: none;">
-                </div>
-                
-                <div id="file-info" class="file-info" style="display: none;">
-                    <h3 id="file-name"></h3>
-                    <p>Type: <span id="file-type"></span></p>
-                    <p>Size: <span id="file-size"></span></p>
-                    <div class="preview-container" id="file-preview">
-                        Loading preview...
-                    </div>
-                </div>
-                
-                <div class="form-group" style="margin-top: 20px;">
-                    <button id="next-to-keywords" class="disabled">Next: Keywords</button>
-                </div>
-            </div>
-            
-            <!-- Step 2: Keywords -->
-            <div class="step-content" id="keywords-step">
-                <h2>Keywords Generation</h2>
-                
-                <div id="keywords-loading" class="status">
-                    <p>Generating keywords... This may take a moment.</p>
-                    <div class="progress-container">
-                        <div id="keywords-progress" class="progress-bar" style="width: 0%">0%</div>
-                    </div>
-                </div>
-                
-                <div id="keywords-container" style="display: none;">
-                    <p>These keywords were automatically generated from your file content. You can edit them or add new ones.</p>
-                    
-                    <div id="keywords-list" style="margin: 15px 0;"></div>
-                    
-                    <div class="form-group">
-                        <label for="new-keyword">Add Keyword</label>
-                        <div style="display: flex;">
-                            <input type="text" id="new-keyword" placeholder="Enter new keyword">
-                            <button style="width: auto; margin-left: 10px;" id="add-keyword">Add</button>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="form-group" style="margin-top: 20px;">
-                    <button id="back-to-upload" class="secondary">Back: Upload</button>
-                    <button id="next-to-process" class="disabled">Next: Process Options</button>
-                </div>
-            </div>
-            
-            <!-- Step 3: Process Options -->
-            <div class="step-content" id="process-step">
-                <h2>Process Options</h2>
-                
-                <div class="form-group">
-                    <label for="model-provider">AI Model Provider</label>
-                    <select id="model-provider">
-                        <option value="anthropic">Claude (Anthropic)</option>
-                        <option value="openai">OpenAI</option>
-                        <option value="mistral">Mistral AI</option>
-                        <option value="lmstudio">LM Studio (Local)</option>
-                    </select>
-                </div>
-                
-                <div class="form-group">
-                    <label for="model-name">Model</label>
-                    <select id="model-name"></select>
-                </div>
-                
-                <div id="lmstudio-settings" style="display: none;">
-                    <div class="form-group">
-                        <label for="base-url">LM Studio URL</label>
-                        <input type="text" id="base-url" value="http://localhost:1234">
-                    </div>
-                </div>
-                
-                <div class="form-group">
-                    <label for="api-key">API Key (Optional)</label>
-                    <input type="password" id="api-key" placeholder="Will use environment variable if not provided">
-                </div>
-                
-                <div class="form-group">
-                    <h3>Output Format</h3>
-                    <div class="format-options">
-                        <div class="format-option selected" data-format="standard">
-                            <h4>Standard Dataset</h4>
-                            <p>Instruction/input/output format for general fine-tuning datasets</p>
-                        </div>
-                        <div class="format-option" data-format="qa">
-                            <h4>Question & Answer</h4>
-                            <p>Generate Q&A pairs from document content</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <button class="collapsible">Advanced Options</button>
-                <div class="collapsible-content">
-                    <div style="padding: 15px 0;">
-                        <div class="form-group checkbox-group">
-                            <input type="checkbox" id="anonymize">
-                            <label for="anonymize">Anonymize Personal Information</label>
-                        </div>
-                        
-                        <div class="form-group checkbox-group">
-                            <input type="checkbox" id="reasoning">
-                            <label for="reasoning">Include Reasoning</label>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="train-split">Training/Validation Split</label>
-                            <input type="range" id="train-split" min="0.5" max="1.0" step="0.05" value="0.8">
-                            <div style="display: flex; justify-content: space-between;">
-                                <span>50/50</span>
-                                <span id="split-value">80/20</span>
-                                <span>100/0</span>
-                            </div>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="chunk-size">Chunk Size (characters)</label>
-                            <input type="number" id="chunk-size" value="2000" min="500" max="8000">
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="overlap-size">Chunk Overlap (characters)</label>
-                            <input type="number" id="overlap-size" value="200" min="0" max="1000">
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="system-prompt">Custom System Prompt (Optional)</label>
-                            <textarea id="system-prompt" rows="3" placeholder="Custom system prompt for the AI model"></textarea>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="form-group" style="margin-top: 20px;">
-                    <button id="back-to-keywords" class="secondary">Back: Keywords</button>
-                    <button id="process-file">Process File</button>
-                </div>
-                
-                <div id="processing-status" class="status" style="display: none;">
-                    <h3>Processing Status: <span id="status-text">Initializing...</span></h3>
-                    <div class="progress-container">
-                        <div id="process-progress" class="progress-bar">0%</div>
-                    </div>
-                    <div id="download-container" style="display: none; margin-top: 15px;">
-                        <button id="download-jsonl">Download JSONL</button>
-                        <button id="download-zip">Download ZIP</button>
-                    </div>
-                </div>
-            </div>
+    <div class="main-container">
+        <h2>Upload File</h2>
+        
+        <div class="file-upload-container" id="upload-area">
+            <p>Drag & drop your file here or</p>
+            <button id="upload-btn">Choose File</button>
+            <input type="file" id="file-input" style="display: none;" accept=".txt,.md,.pdf,.docx,.csv,.json,.jsonl,.yaml,.yml,.wav,.mp3">
         </div>
         
-        <!-- Side Panel -->
-        <div class="side-panel">
-            <h3>File Processing Guide</h3>
-            <div id="upload-help" class="help-text">
-                <p><strong>Step 1: Upload File</strong></p>
-                <p>Upload your file by dragging it into the drop area or clicking to browse. Supported formats:</p>
-                <ul>
-                    <li>Text: .txt, .md</li>
-                    <li>Documents: .pdf, .docx</li>
-                    <li>Data: .csv, .json, .jsonl, .yaml</li>
-                    <li>Audio: .wav, .mp3</li>
-                </ul>
-                <p>The file will be automatically analyzed and a preview will be shown.</p>
-            </div>
-            
-            <div id="keywords-help" class="help-text" style="display: none;">
-                <p><strong>Step 2: Keywords</strong></p>
-                <p>Keywords help to categorize and organize your dataset. They are:</p>
-                <ul>
-                    <li>Automatically generated based on content</li>
-                    <li>Editable - you can add, remove, or modify them</li>
-                    <li>Included in the output dataset metadata</li>
-                </ul>
-                <p>Add relevant keywords to make your dataset more discoverable and useful.</p>
-            </div>
-            
-            <div id="process-help" class="help-text" style="display: none;">
-                <p><strong>Step 3: Process Options</strong></p>
-                <p>Configure how your file will be processed:</p>
-                <ul>
-                    <li>Select AI model for processing</li>
-                    <li>Choose output format (Standard or Q&A)</li>
-                    <li>Set training/validation split ratio</li>
-                    <li>Enable anonymization for sensitive data</li>
-                    <li>Adjust advanced settings like chunk size</li>
-                </ul>
-                <p>Click "Process File" when ready to convert your file into a dataset.</p>
-            </div>
+        <div class="file-list" id="file-list">
+            <!-- File items will be added here -->
         </div>
+        
+        <button id="next-btn" class="disabled">Next: Keywords</button>
     </div>
-    
+
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Elements
-            const steps = document.querySelectorAll('.step');
-            const stepContents = document.querySelectorAll('.step-content');
-            const fileDropArea = document.getElementById('file-drop-area');
+            const uploadArea = document.getElementById('upload-area');
             const fileInput = document.getElementById('file-input');
-            const fileInfo = document.getElementById('file-info');
-            const fileName = document.getElementById('file-name');
-            const fileType = document.getElementById('file-type');
-            const fileSize = document.getElementById('file-size');
-            const filePreview = document.getElementById('file-preview');
-            const nextToKeywords = document.getElementById('next-to-keywords');
-            const backToUpload = document.getElementById('back-to-upload');
-            const nextToProcess = document.getElementById('next-to-process');
-            const backToKeywords = document.getElementById('back-to-keywords');
-            const processFile = document.getElementById('process-file');
-            const keywordsLoading = document.getElementById('keywords-loading');
-            const keywordsContainer = document.getElementById('keywords-container');
-            const keywordsList = document.getElementById('keywords-list');
-            const newKeyword = document.getElementById('new-keyword');
-            const addKeyword = document.getElementById('add-keyword');
-            const trainSplit = document.getElementById('train-split');
-            const splitValue = document.getElementById('split-value');
-            const modelProvider = document.getElementById('model-provider');
-            const modelName = document.getElementById('model-name');
-            const lmStudioSettings = document.getElementById('lmstudio-settings');
-            const formatOptions = document.querySelectorAll('.format-option');
-            const processingStatus = document.getElementById('processing-status');
-            const statusText = document.getElementById('status-text');
-            const processProgress = document.getElementById('process-progress');
-            const downloadContainer = document.getElementById('download-container');
-            const helpTexts = document.querySelectorAll('.help-text');
+            const fileList = document.getElementById('file-list');
+            const uploadButton = document.getElementById('upload-btn');
+            const nextButton = document.getElementById('next-btn');
             
-            // State management
-            let currentStep = 'upload';
-            let uploadedFile = null;
-            let uploadedFilePath = null;
-            let keywords = [];
-            let keywordsGenerated = false;
-            let jobId = null;
-            let socket = null;
-            
-            // Initialize model options
-            updateModelOptions(modelProvider.value, modelName);
-            
-            // Step navigation
-            function showStep(stepId) {
-                // Update step buttons
-                steps.forEach(step => {
-                    if (step.dataset.step === stepId) {
-                        step.classList.add('active');
-                    } else {
-                        step.classList.remove('active');
-                    }
-                });
-                
-                // Update step content
-                stepContents.forEach(content => {
-                    if (content.id === stepId + '-step') {
-                        content.classList.add('active');
-                    } else {
-                        content.classList.remove('active');
-                    }
-                });
-                
-                // Update help text
-                helpTexts.forEach(help => {
-                    if (help.id === stepId + '-help') {
-                        help.style.display = 'block';
-                    } else {
-                        help.style.display = 'none';
-                    }
-                });
-                
-                currentStep = stepId;
-            }
-            
-            // File Drop Area Event Handlers
+            // Add document-level drag and drop handlers for better drag and drop support
             ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-                fileDropArea.addEventListener(eventName, preventDefaults, false);
+                document.body.addEventListener(eventName, function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log(`Document ${eventName} event captured`);
+                }, false);
+            });
+            
+            // Store uploaded file path
+            let uploadedFilePath = null;
+            
+            // Handle click on upload area or button
+            uploadArea.addEventListener('click', function(e) {
+                if (e.target !== uploadButton) {
+                    fileInput.click();
+                }
+            });
+            
+            uploadButton.addEventListener('click', function(e) {
+                e.stopPropagation();
+                fileInput.click();
+            });
+            
+            // Handle file selection
+            fileInput.addEventListener('change', function() {
+                if (fileInput.files.length > 0) {
+                    const file = fileInput.files[0];
+                    uploadFile(file);
+                }
+            });
+            
+            // Handle drag and drop
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                uploadArea.addEventListener(eventName, preventDefaults, false);
             });
             
             function preventDefaults(e) {
@@ -382,161 +137,128 @@
                 e.stopPropagation();
             }
             
-            ['dragenter', 'dragover'].forEach(eventName => {
-                fileDropArea.addEventListener(eventName, highlight, false);
+            uploadArea.addEventListener('dragenter', function() {
+                uploadArea.style.backgroundColor = '#f0f8ff';
+                uploadArea.style.borderColor = '#2196F3';
             });
             
-            ['dragleave', 'drop'].forEach(eventName => {
-                fileDropArea.addEventListener(eventName, unhighlight, false);
+            uploadArea.addEventListener('dragleave', function() {
+                uploadArea.style.backgroundColor = '';
+                uploadArea.style.borderColor = '#ccc';
             });
             
-            function highlight() {
-                fileDropArea.classList.add('highlight');
-            }
-            
-            function unhighlight() {
-                fileDropArea.classList.remove('highlight');
-            }
-            
-            fileDropArea.addEventListener('drop', handleDrop, false);
-            fileDropArea.addEventListener('click', () => fileInput.click());
-            fileInput.addEventListener('change', handleFiles);
-            
-            function handleDrop(e) {
+            uploadArea.addEventListener('drop', function(e) {
+                uploadArea.style.backgroundColor = '';
+                uploadArea.style.borderColor = '#ccc';
+                
                 const dt = e.dataTransfer;
                 const files = dt.files;
                 
                 if (files.length > 0) {
-                    handleFile(files[0]);
+                    const file = files[0];
+                    uploadFile(file);
                 }
-            }
+            });
             
-            function handleFiles() {
-                if (fileInput.files.length > 0) {
-                    handleFile(fileInput.files[0]);
-                }
-            }
-            
-            function handleFile(file) {
-                uploadedFile = file;
-                
-                // Display file info
-                fileName.textContent = file.name;
-                fileType.textContent = file.type || getFileTypeFromExtension(file.name);
-                fileSize.textContent = formatFileSize(file.size);
-                fileInfo.style.display = 'block';
-                
-                // Generate preview based on file type
-                generatePreview(file);
-                
-                // Enable next button
-                nextToKeywords.classList.remove('disabled');
-                
-                // Upload the file to server
-                uploadFile(file);
-            }
-            
-            function getFileTypeFromExtension(filename) {
-                const ext = filename.split('.').pop().toLowerCase();
-                const typeMap = {
-                    'txt': 'Text document',
-                    'md': 'Markdown document',
-                    'pdf': 'PDF document',
-                    'docx': 'Word document',
-                    'csv': 'CSV spreadsheet',
-                    'json': 'JSON data',
-                    'jsonl': 'JSON Lines data',
-                    'yaml': 'YAML data',
-                    'yml': 'YAML data',
-                    'wav': 'WAV audio',
-                    'mp3': 'MP3 audio'
-                };
-                
-                return typeMap[ext] || 'Unknown type';
-            }
-            
-            function formatFileSize(bytes) {
-                if (bytes < 1024) return bytes + ' bytes';
-                if (bytes < 1048576) return (bytes / 1024).toFixed(2) + ' KB';
-                return (bytes / 1048576).toFixed(2) + ' MB';
-            }
-            
-            function generatePreview(file) {
-                filePreview.textContent = 'Loading preview...';
-                
-                const ext = file.name.split('.').pop().toLowerCase();
-                
-                // Handle different file types
-                if (['txt', 'md', 'csv', 'json', 'jsonl', 'yaml', 'yml'].includes(ext)) {
-                    const reader = new FileReader();
-                    reader.onload = function(e) {
-                        // Limit preview to first 2000 chars
-                        const content = e.target.result.substring(0, 2000);
-                        filePreview.textContent = content + (content.length < e.target.result.length ? '...' : '');
-                    };
-                    reader.readAsText(file);
-                } else if (ext === 'pdf') {
-                    filePreview.textContent = 'PDF preview not available. File will be processed on the server.';
-                } else if (ext === 'docx') {
-                    filePreview.textContent = 'DOCX preview not available. File will be processed on the server.';
-                } else if (['wav', 'mp3'].includes(ext)) {
-                    filePreview.innerHTML = 'Audio file preview:';
-                    const audio = document.createElement('audio');
-                    audio.controls = true;
-                    audio.src = URL.createObjectURL(file);
-                    filePreview.appendChild(document.createElement('br'));
-                    filePreview.appendChild(audio);
-                } else {
-                    filePreview.textContent = 'Preview not available for this file type. File will be processed on the server.';
-                }
-            }
-            
+            // Upload file function
             async function uploadFile(file) {
-                console.log('Starting file upload for:', file.name);
+                // Clear existing items
+                fileList.innerHTML = '';
+                
+                // Create file item element
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+                fileItem.innerHTML = `
+                    <p><strong>${file.name}</strong> (${formatFileSize(file.size)})</p>
+                    <p class="loading">Uploading...</p>
+                `;
+                fileList.appendChild(fileItem);
+                
+                // Create form data
                 const formData = new FormData();
                 formData.append('file', file);
                 
                 try {
-                    console.log('Sending POST request to /upload');
+                    console.log('Starting file upload:', file.name);
+                    
+                    // Upload the file
+                    console.log('Sending upload request');
                     const response = await fetch('/upload', {
                         method: 'POST',
                         body: formData
                     });
                     
                     console.log('Upload response status:', response.status);
+                    console.log('Upload response headers:', [...response.headers.entries()]);
                     
-                    if (!response.ok) {
-                        const errorText = await response.text();
-                        console.error('Upload error details:', errorText);
-                        throw new Error(`File upload failed with status ${response.status}`);
+                    // Handle response
+                    const responseText = await response.text();
+                    console.log('Raw response:', responseText);
+                    
+                    let data;
+                    try {
+                        data = JSON.parse(responseText);
+                    } catch (e) {
+                        console.error('Failed to parse JSON response:', e);
+                        throw new Error('Invalid server response format');
                     }
                     
-                    const data = await response.json();
-                    console.log('Upload response data:', data);
+                    if (!response.ok) {
+                        throw new Error(data.detail || 'Upload failed');
+                    }
+                    
+                    // Successfully uploaded
                     uploadedFilePath = data.file_path;
+                    
+                    // Update UI
+                    fileItem.innerHTML = `
+                        <p><strong>${file.name}</strong> (${formatFileSize(file.size)})</p>
+                        <p class="success">✓ Successfully uploaded</p>
+                        <p>Server path: ${uploadedFilePath}</p>
+                    `;
+                    
+                    // Enable next button
+                    nextButton.classList.remove('disabled');
+                    
                     console.log('File uploaded successfully:', uploadedFilePath);
+                    
                 } catch (error) {
                     console.error('Error uploading file:', error);
-                    alert('Failed to upload file. Please try again.');
+                    
+                    // Update UI with error
+                    fileItem.innerHTML = `
+                        <p><strong>${file.name}</strong> (${formatFileSize(file.size)})</p>
+                        <p class="error">Upload failed: ${error.message}</p>
+                    `;
+                    
+                    // Keep next button disabled
+                    nextButton.classList.add('disabled');
                 }
             }
             
-            // Keywords Step
-            async function generateKeywords() {
-                if (!uploadedFilePath) {
-                    alert('Please upload a file first');
+            // File size formatter
+            function formatFileSize(bytes) {
+                if (bytes < 1024) return bytes + ' bytes';
+                if (bytes < 1048576) return (bytes / 1024).toFixed(2) + ' KB';
+                return (bytes / 1048576).toFixed(2) + ' MB';
+            }
+            
+            // Next button functionality
+            nextButton.addEventListener('click', async function() {
+                if (!uploadedFilePath || nextButton.classList.contains('disabled')) {
                     return;
                 }
                 
-                keywordsLoading.style.display = 'block';
-                keywordsContainer.style.display = 'none';
-                keywordsList.innerHTML = '';
-                
                 try {
+                    // Show loading message
+                    nextButton.textContent = "Processing...";
+                    nextButton.disabled = true;
+                    
+                    // Make a request to extract keywords
                     const response = await fetch('/extract-keywords', {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json',
+                            'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
                             file_path: uploadedFilePath
@@ -544,325 +266,24 @@
                     });
                     
                     if (!response.ok) {
-                        throw new Error('Failed to generate keywords');
+                        throw new Error('Failed to extract keywords');
                     }
                     
                     const data = await response.json();
-                    keywords = data.keywords || [];
-                    keywordsGenerated = true;
+                    console.log('Extracted keywords:', data.keywords);
                     
-                    // Display keywords
-                    renderKeywords();
-                    keywordsLoading.style.display = 'none';
-                    keywordsContainer.style.display = 'block';
+                    // Store keywords in localStorage for the next page
+                    localStorage.setItem('uploadedFilePath', uploadedFilePath);
+                    localStorage.setItem('extractedKeywords', JSON.stringify(data.keywords || []));
                     
-                    // Enable next button
-                    nextToProcess.classList.remove('disabled');
+                    // Navigate to the next step (model setup or keyword editing)
+                    window.location.href = '/prepare?file=' + encodeURIComponent(uploadedFilePath);
+                    
                 } catch (error) {
-                    console.error('Error generating keywords:', error);
-                    keywordsLoading.style.display = 'none';
-                    keywordsContainer.style.display = 'block';
-                    keywordsList.innerHTML = '<p>Failed to generate keywords automatically. You can add them manually.</p>';
-                }
-            }
-            
-            function renderKeywords() {
-                keywordsList.innerHTML = '';
-                
-                if (keywords.length === 0) {
-                    keywordsList.innerHTML = '<p>No keywords yet. Add some keywords to help categorize your data.</p>';
-                    return;
-                }
-                
-                keywords.forEach((keyword, index) => {
-                    const keywordTag = document.createElement('span');
-                    keywordTag.className = 'keyword-tag';
-                    keywordTag.innerHTML = keyword + '<span class="remove" data-index="' + index + '">×</span>';
-                    keywordsList.appendChild(keywordTag);
-                });
-                
-                // Add event listeners to remove buttons
-                document.querySelectorAll('.keyword-tag .remove').forEach(button => {
-                    button.addEventListener('click', function() {
-                        const index = parseInt(this.dataset.index);
-                        keywords.splice(index, 1);
-                        renderKeywords();
-                    });
-                });
-            }
-            
-            addKeyword.addEventListener('click', function() {
-                const keyword = newKeyword.value.trim();
-                if (keyword) {
-                    keywords.push(keyword);
-                    newKeyword.value = '';
-                    renderKeywords();
-                    
-                    // Enable next button if it was disabled
-                    nextToProcess.classList.remove('disabled');
-                }
-            });
-            
-            newKeyword.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    addKeyword.click();
-                }
-            });
-            
-            // Model provider change handling
-            modelProvider.addEventListener('change', function() {
-                updateModelOptions(this.value, modelName);
-                
-                // Show/hide LM Studio settings
-                lmStudioSettings.style.display = this.value === 'lmstudio' ? 'block' : 'none';
-            });
-            
-            function updateModelOptions(provider, selectElement) {
-                // Clear current options
-                selectElement.innerHTML = '';
-                
-                // This will be replaced by the server with dynamically generated model options
-                const availableModels = {
-                    "anthropic": [
-                        "claude-3-5-sonnet-20240620",
-                        "claude-3-opus-20240229",
-                        "claude-3-sonnet-20240229",
-                        "claude-3-haiku-20240307"
-                    ],
-                    "openai": [
-                        "gpt-4o",
-                        "gpt-4-turbo",
-                        "gpt-4",
-                        "gpt-3.5-turbo"
-                    ],
-                    "mistral": [
-                        "mistral-large-latest",
-                        "mistral-medium-latest",
-                        "mistral-small-latest"
-                    ],
-                    "lmstudio": [
-                        "local-model"
-                    ]
-                };
-                
-                // Add model options
-                const models = availableModels[provider] || [];
-                models.forEach(model => {
-                    const option = document.createElement('option');
-                    option.value = model;
-                    option.textContent = model;
-                    selectElement.appendChild(option);
-                });
-            }
-            
-            // Format options selection
-            formatOptions.forEach(option => {
-                option.addEventListener('click', function() {
-                    formatOptions.forEach(o => o.classList.remove('selected'));
-                    this.classList.add('selected');
-                });
-            });
-            
-            // Train/Validation split slider
-            trainSplit.addEventListener('input', function() {
-                const trainPercentage = Math.round(this.value * 100);
-                const validPercentage = 100 - trainPercentage;
-                splitValue.textContent = `${trainPercentage}/${validPercentage}`;
-            });
-            
-            // Collapsible sections
-            const collapsibles = document.getElementsByClassName("collapsible");
-            for (let i = 0; i < collapsibles.length; i++) {
-                collapsibles[i].addEventListener("click", function() {
-                    this.classList.toggle("active");
-                    const content = this.nextElementSibling;
-                    if (content.style.maxHeight) {
-                        content.style.maxHeight = null;
-                    } else {
-                        content.style.maxHeight = content.scrollHeight + "px";
-                    }
-                });
-            }
-            
-            // Step navigation buttons
-            nextToKeywords.addEventListener('click', function() {
-                if (this.classList.contains('disabled')) return;
-                
-                showStep('keywords');
-                steps[1].classList.remove('disabled');
-                
-                // Generate keywords if not already done
-                if (!keywordsGenerated) {
-                    generateKeywords();
-                }
-            });
-            
-            backToUpload.addEventListener('click', function() {
-                showStep('upload');
-            });
-            
-            nextToProcess.addEventListener('click', function() {
-                if (this.classList.contains('disabled')) return;
-                
-                showStep('process');
-                steps[2].classList.remove('disabled');
-            });
-            
-            backToKeywords.addEventListener('click', function() {
-                showStep('keywords');
-            });
-            
-            // Process file button
-            processFile.addEventListener('click', async function() {
-                if (!uploadedFilePath) {
-                    alert('Please upload a file first');
-                    return;
-                }
-                
-                processingStatus.style.display = 'block';
-                statusText.textContent = 'Initializing...';
-                processProgress.style.width = '0%';
-                processProgress.textContent = '0%';
-                downloadContainer.style.display = 'none';
-                
-                // Get selected format
-                const formatOption = document.querySelector('.format-option.selected');
-                const format = formatOption ? formatOption.dataset.format : 'standard';
-                
-                // Prepare additional options
-                const additionalOptions = {
-                    keywords: keywords,
-                    reasoning: document.getElementById('reasoning').checked
-                };
-                
-                // Additional options for Q&A format
-                if (format === 'qa') {
-                    additionalOptions.questions_count = 5; // Default to 5 questions
-                }
-                
-                const formData = new FormData();
-                formData.append('file_path', uploadedFilePath);
-                formData.append('conversion_type', format === 'standard' ? 'standard' : 'articles');
-                formData.append('model_provider', modelProvider.value);
-                formData.append('model_name', modelName.value);
-                formData.append('anonymize', document.getElementById('anonymize').checked);
-                formData.append('train_split', trainSplit.value);
-                formData.append('keyword_extraction', keywords.length > 0);
-                formData.append('chunk_size', document.getElementById('chunk-size').value);
-                formData.append('overlap_size', document.getElementById('overlap-size').value);
-                formData.append('api_key', document.getElementById('api-key').value);
-                
-                // Add LM Studio URL if needed
-                if (modelProvider.value === 'lmstudio') {
-                    formData.append('base_url', document.getElementById('base-url').value);
-                }
-                
-                // Add system prompt if provided
-                const systemPrompt = document.getElementById('system-prompt').value;
-                if (systemPrompt) {
-                    formData.append('system_prompt', systemPrompt);
-                }
-                
-                // Add additional options
-                formData.append('additional_options_json', JSON.stringify(additionalOptions));
-                
-                try {
-                    const response = await fetch('/convert', {
-                        method: 'POST',
-                        body: formData
-                    });
-                    
-                    if (!response.ok) {
-                        throw new Error('Failed to start processing');
-                    }
-                    
-                    const data = await response.json();
-                    jobId = data.job_id;
-                    
-                    // Connect to WebSocket for real-time updates
-                    connectWebSocket(jobId);
-                    
-                    // Start polling for progress
-                    pollProgress(jobId);
-                } catch (error) {
-                    console.error('Error starting processing:', error);
-                    statusText.textContent = 'Error: ' + error.message;
-                }
-            });
-            
-            // WebSocket connection
-            function connectWebSocket(id) {
-                if (socket && socket.readyState === WebSocket.OPEN) {
-                    socket.close();
-                }
-                
-                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                const wsUrl = `${protocol}//${window.location.host}/ws/${id}`;
-                socket = new WebSocket(wsUrl);
-                
-                socket.onopen = function() {
-                    console.log('WebSocket connected for job:', id);
-                };
-                
-                socket.onmessage = function(event) {
-                    const data = JSON.parse(event.data);
-                    updateProgress(id, data);
-                };
-                
-                socket.onerror = function(error) {
-                    console.error('WebSocket error:', error);
-                };
-                
-                socket.onclose = function() {
-                    console.log('WebSocket disconnected');
-                };
-            }
-            
-            // Poll progress
-            function pollProgress(id) {
-                fetch('/progress/' + id)
-                    .then(response => response.json())
-                    .then(data => {
-                        updateProgress(id, data);
-                        
-                        // Continue polling if not completed
-                        if (!data.completed && data.status !== 'error') {
-                            setTimeout(() => pollProgress(id), 2000);
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error polling progress:', error);
-                        setTimeout(() => pollProgress(id), 5000);
-                    });
-            }
-            
-            // Update progress display
-            function updateProgress(id, data) {
-                statusText.textContent = data.message || 'Processing...';
-                
-                if (data.progress !== undefined) {
-                    processProgress.style.width = data.progress + '%';
-                    processProgress.textContent = data.progress + '%';
-                }
-                
-                if (data.completed) {
-                    statusText.textContent = 'Processing completed!';
-                    downloadContainer.style.display = 'block';
-                } else if (data.status === 'error') {
-                    statusText.textContent = 'Error: ' + data.message;
-                }
-            }
-            
-            // Download buttons
-            document.getElementById('download-jsonl').addEventListener('click', function() {
-                if (jobId) {
-                    window.location.href = '/download/' + jobId + '?format=jsonl';
-                }
-            });
-            
-            document.getElementById('download-zip').addEventListener('click', function() {
-                if (jobId) {
-                    window.location.href = '/download/' + jobId + '?format=zip';
+                    console.error('Error extracting keywords:', error);
+                    alert('Error extracting keywords: ' + error.message);
+                    nextButton.textContent = "Next: Keywords";
+                    nextButton.disabled = false;
                 }
             });
         });
