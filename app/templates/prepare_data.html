@@ -1,0 +1,1448 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AnyDataset - Prepare Training Data</title>
+    <style>
+        :root {
+            --primary-color: #4a6fa5;
+            --secondary-color: #166088;
+            --accent-color: #1e8c93;
+            --light-bg: #f5f7fa;
+            --dark-bg: #2c3e50;
+            --success-color: #27ae60;
+            --warning-color: #e67e22;
+            --danger-color: #e74c3c;
+            --info-color: #3498db;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', 'Roboto', sans-serif;
+        }
+        
+        body {
+            background-color: var(--light-bg);
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background-color: var(--dark-bg);
+            color: white;
+            padding: 20px 0;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        header .container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        header h1 {
+            margin: 0;
+            font-size: 1.8rem;
+        }
+        
+        nav ul {
+            display: flex;
+            list-style: none;
+        }
+        
+        nav ul li {
+            margin-left: 20px;
+        }
+        
+        nav ul li a {
+            color: #fff;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+        
+        nav ul li a:hover {
+            color: var(--accent-color);
+        }
+        
+        nav ul li a.active {
+            color: var(--accent-color);
+            border-bottom: 2px solid var(--accent-color);
+        }
+        
+        .main-content {
+            margin-top: 30px;
+            display: flex;
+            min-height: calc(100vh - 160px);
+        }
+        
+        aside {
+            width: 250px;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            margin-right: 20px;
+        }
+        
+        .content {
+            flex: 1;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        h2 {
+            color: var(--secondary-color);
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        h3 {
+            color: var(--primary-color);
+            margin: 15px 0;
+        }
+        
+        .card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .card h3 {
+            margin-top: 0;
+        }
+        
+        .button {
+            display: inline-block;
+            background-color: var(--primary-color);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .button:hover {
+            background-color: var(--secondary-color);
+        }
+        
+        .button.success {
+            background-color: var(--success-color);
+        }
+        
+        .button.warning {
+            background-color: var(--warning-color);
+        }
+        
+        .button.danger {
+            background-color: var(--danger-color);
+        }
+        
+        .button.info {
+            background-color: var(--info-color);
+        }
+        
+        .input-group {
+            margin-bottom: 15px;
+        }
+        
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        
+        .input-group input,
+        .input-group select,
+        .input-group textarea {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .input-group textarea {
+            min-height: 100px;
+        }
+        
+        .checkbox-group {
+            margin-bottom: 15px;
+        }
+        
+        .checkbox-group label {
+            display: inline-flex;
+            align-items: center;
+            cursor: pointer;
+            margin-right: 15px;
+        }
+        
+        .checkbox-group input[type="checkbox"] {
+            margin-right: 5px;
+        }
+        
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 20px;
+        }
+        
+        .tab {
+            padding: 10px 15px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-right: 10px;
+            transition: all 0.3s;
+        }
+        
+        .tab.active {
+            border-bottom: 2px solid var(--primary-color);
+            color: var(--primary-color);
+            font-weight: 500;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .progress-container {
+            margin: 15px 0;
+            background-color: #eee;
+            border-radius: 4px;
+            position: relative;
+            height: 20px;
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            background-color: var(--primary-color);
+            transition: width 0.3s ease;
+        }
+        
+        .progress-text {
+            position: absolute;
+            width: 100%;
+            text-align: center;
+            color: white;
+            font-size: 12px;
+            line-height: 20px;
+            font-weight: 500;
+            text-shadow: 0 0 2px rgba(0,0,0,0.5);
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        
+        table th, table td {
+            padding: 8px 12px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+        
+        table th {
+            background-color: #f9f9f9;
+            font-weight: 500;
+        }
+        
+        .alert {
+            padding: 10px 15px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-weight: 500;
+        }
+        
+        .alert.success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .alert.warning {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        
+        .alert.danger {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        
+        .alert.info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+        
+        footer {
+            background-color: var(--dark-bg);
+            color: white;
+            text-align: center;
+            padding: 20px 0;
+            margin-top: 30px;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        
+        .modal-content {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .close {
+            float: right;
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        .flex-container {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .flex-column {
+            flex: 1;
+        }
+        
+        .draggable-item {
+            padding: 10px;
+            background-color: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 8px;
+            cursor: move;
+        }
+        
+        .drag-over {
+            border: 2px dashed var(--primary-color);
+            background-color: rgba(74, 111, 165, 0.1);
+        }
+        
+        .stat-card {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--secondary-color);
+            margin: 10px 0;
+        }
+        
+        .stat-label {
+            font-size: 1rem;
+            color: #666;
+        }
+        
+        .chart-container {
+            height: 300px;
+            margin: 20px 0;
+        }
+        
+        /* Dataset quality meter */
+        .quality-meter {
+            width: 100%;
+            height: 30px;
+            background: linear-gradient(to right, 
+                #e74c3c 0%, 
+                #e67e22 20%, 
+                #f1c40f 40%, 
+                #27ae60 60%, 
+                #2ecc71 80%);
+            border-radius: 15px;
+            position: relative;
+            margin: 20px 0;
+        }
+        
+        .quality-indicator {
+            width: 20px;
+            height: 40px;
+            background-color: #333;
+            position: absolute;
+            top: -5px;
+            left: 0;
+            border-radius: 5px;
+            transition: left 0.5s ease;
+        }
+        
+        .quality-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 5px;
+        }
+        
+        .quality-label {
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        /* Config panels */
+        .config-panel {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .config-panel h4 {
+            margin-top: 0;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        
+        /* Toggle switch */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+        
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
+        }
+        
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .slider {
+            background-color: var(--primary-color);
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+        
+        .filter-tag {
+            display: inline-block;
+            background-color: #eee;
+            border-radius: 20px;
+            padding: 5px 10px;
+            margin-right: 5px;
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+        
+        .filter-tag .remove {
+            cursor: pointer;
+            margin-left: 5px;
+            font-weight: bold;
+        }
+        
+        /* Tooltip */
+        .tooltip {
+            position: relative;
+            display: inline-block;
+            margin-left: 5px;
+        }
+        
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 200px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 5px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -100px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 12px;
+            font-weight: normal;
+        }
+        
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+        
+        .reasoning-template {
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            background-color: #f9f9f9;
+        }
+        
+        .template-section {
+            margin-bottom: 10px;
+        }
+        
+        .example-highlight {
+            background-color: #ffffe0;
+            padding: 3px;
+            border-radius: 3px;
+        }
+        
+        .split-control {
+            display: flex;
+            align-items: center;
+            margin: 20px 0;
+        }
+        
+        .split-slider {
+            flex: 1;
+            margin: 0 15px;
+        }
+        
+        .split-value {
+            width: 50px;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .code-block {
+            background-color: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>AnyDataset</h1>
+            <nav>
+                <ul>
+                    <li><a href="/">Home</a></li>
+                    <li><a href="/process">Process File</a></li>
+                    <li><a href="/batch">Batch Process</a></li>
+                    <li><a href="/prepare" class="active">Prepare Training Data</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+    
+    <div class="container">
+        <div class="main-content">
+            <aside>
+                <h3>Datasety źródłowe</h3>
+                <div id="sourceDatasets">
+                    <!-- Lista przetworzonych datasetów -->
+                    <div class="input-group">
+                        <input type="text" id="datasetSearch" placeholder="Szukaj datasetu...">
+                    </div>
+                    <div id="datasetList">
+                        <!-- Dynamicznie generowana lista -->
+                    </div>
+                </div>
+                
+                <h3>Statystyki</h3>
+                <div class="stat-card">
+                    <div class="stat-value" id="totalExamples">0</div>
+                    <div class="stat-label">Przykładów</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="uniqueExamples">0</div>
+                    <div class="stat-label">Po deduplikacji</div>
+                </div>
+                
+                <h3>Jakość datasetu</h3>
+                <div class="quality-meter">
+                    <div class="quality-indicator" id="qualityIndicator" style="left: 0%"></div>
+                </div>
+                <div class="quality-labels">
+                    <div class="quality-label">Słaba</div>
+                    <div class="quality-label">Średnia</div>
+                    <div class="quality-label">Doskonała</div>
+                </div>
+                
+                <h3>Akcje</h3>
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <button class="button" id="previewDataset">Podgląd przykładów</button>
+                    <button class="button" id="analyzeDataset">Analiza datasetu</button>
+                    <button class="button success" id="generateDataset">Generuj finalny dataset</button>
+                    <button class="button warning" id="clearSelection">Wyczyść wybór</button>
+                </div>
+            </aside>
+            
+            <div class="content">
+                <h2>Przygotowanie danych treningowych</h2>
+                
+                <div class="tabs">
+                    <div class="tab active" data-tab="source-selection">1. Wybór źródeł</div>
+                    <div class="tab" data-tab="processing-options">2. Opcje przetwarzania</div>
+                    <div class="tab" data-tab="reasoning-templates">3. Szablony rozumowania</div>
+                    <div class="tab" data-tab="export-options">4. Eksport datasetu</div>
+                </div>
+                
+                <div class="tab-content active" id="source-selection">
+                    <div class="card">
+                        <h3>Wybór źródeł danych</h3>
+                        <p>Wybierz zestawy danych, które chcesz połączyć w finalny dataset treningowy. Możesz dodać dane z różnych źródeł i formatów.</p>
+                        
+                        <div class="flex-container">
+                            <div class="flex-column">
+                                <h4>Dostępne datasety</h4>
+                                <div id="availableDatasets" class="draggable-container">
+                                    <!-- Dynamicznie generowane elementy -->
+                                    <div class="draggable-item" draggable="true" data-id="weterynaryjny_dataset_1">
+                                        Weterynaryjny Dataset 1 <span style="color: #666; font-size: 12px;">(1200 przykładów)</span>
+                                    </div>
+                                    <div class="draggable-item" draggable="true" data-id="weterynaryjny_dataset_2">
+                                        Weterynaryjny Dataset 2 <span style="color: #666; font-size: 12px;">(850 przykładów)</span>
+                                    </div>
+                                    <div class="draggable-item" draggable="true" data-id="medyczny_dataset_1">
+                                        Medyczny Dataset 1 <span style="color: #666; font-size: 12px;">(1500 przykładów)</span>
+                                    </div>
+                                    <div class="draggable-item" draggable="true" data-id="instrukcje_weterynaryjne">
+                                        Instrukcje Weterynaryjne <span style="color: #666; font-size: 12px;">(320 przykładów)</span>
+                                    </div>
+                                    <div class="draggable-item" draggable="true" data-id="weterynaria_pytania">
+                                        Weterynaria Q&A <span style="color: #666; font-size: 12px;">(950 przykładów)</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex-column">
+                                <h4>Wybrane datasety</h4>
+                                <div id="selectedDatasets" class="draggable-container">
+                                    <!-- Tutaj zostaną umieszczone wybrane elementy -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <h3>Lokalne pliki JSONL</h3>
+                        <p>Możesz także dodać swoje własne pliki w formacie JSONL.</p>
+                        
+                        <div class="input-group">
+                            <label for="localFiles">Wybierz pliki JSONL</label>
+                            <input type="file" id="localFiles" multiple accept=".jsonl,.json">
+                        </div>
+                        
+                        <div id="uploadedFiles">
+                            <!-- Lista wczytanych plików -->
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="tab-content" id="processing-options">
+                    <div class="card">
+                        <h3>Filtrowanie i transformacje danych</h3>
+                        
+                        <div class="config-panel">
+                            <h4>Deduplikacja</h4>
+                            <div class="input-group">
+                                <label for="deduplicationThreshold">
+                                    Próg podobieństwa
+                                    <div class="tooltip">ℹ️
+                                        <span class="tooltiptext">Przykłady o podobieństwie powyżej tego progu zostaną uznane za duplikaty (0.0-1.0)</span>
+                                    </div>
+                                </label>
+                                <input type="range" id="deduplicationThreshold" min="0.5" max="1" step="0.01" value="0.85">
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span>0.5</span>
+                                    <span id="dedupThresholdValue">0.85</span>
+                                    <span>1.0</span>
+                                </div>
+                            </div>
+                            <div class="input-group">
+                                <label for="dedupMethod">Metoda deduplikacji</label>
+                                <select id="dedupMethod">
+                                    <option value="semantic">Semantyczna (embedding)</option>
+                                    <option value="ngram">N-gram (leksykalna)</option>
+                                    <option value="hybrid" selected>Hybrydowa (zalecana)</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="config-panel">
+                            <h4>Filtrowanie jakościowe</h4>
+                            
+                            <div class="input-group">
+                                <label>Minimalna długość</label>
+                                <div style="display: flex; gap: 10px;">
+                                    <div style="flex: 1;">
+                                        <small>Instrukcja: 50 znaków</small>
+                                        <input type="range" id="minInstructionLen" min="10" max="200" value="50">
+                                    </div>
+                                    <div style="flex: 1;">
+                                        <small>Output: 100 znaków</small>
+                                        <input type="range" id="minOutputLen" min="50" max="500" value="100">
+                                    </div>
+                                    <div style="flex: 1;">
+                                        <small>Reasoning: 300 znaków</small>
+                                        <input type="range" id="minReasoningLen" min="100" max="1000" value="300">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="checkbox-group">
+                                <label><input type="checkbox" id="filterMissingReasoning" checked> Odrzuć przykłady bez rozumowania</label>
+                                <label><input type="checkbox" id="filterLowQuality" checked> Odrzuć przykłady niskiej jakości</label>
+                                <label><input type="checkbox" id="filterNonPolish" checked> Odrzuć przykłady niebędące po polsku</label>
+                            </div>
+                            
+                            <div class="input-group">
+                                <label for="filterTags">Filtrowanie po tagach</label>
+                                <input type="text" id="filterTags" placeholder="np. kardiologia, dermatologia, parazytologia">
+                                <small>Dodaj tagi oddzielone przecinkami i naciśnij Enter</small>
+                            </div>
+                            
+                            <div id="filterTagsList">
+                                <!-- Dynamicznie generowane tagi -->
+                            </div>
+                        </div>
+                        
+                        <div class="config-panel">
+                            <h4>Augmentacja danych</h4>
+                            
+                            <div class="checkbox-group">
+                                <label>
+                                    <input type="checkbox" id="enableAugmentation" checked>
+                                    Włącz augmentację danych
+                                    <div class="tooltip">ℹ️
+                                        <span class="tooltiptext">Wygeneruj dodatkowe przykłady na podstawie istniejących danych</span>
+                                    </div>
+                                </label>
+                            </div>
+                            
+                            <div id="augmentationOptions">
+                                <div class="input-group">
+                                    <label for="augmentationFactor">Współczynnik augmentacji</label>
+                                    <select id="augmentationFactor">
+                                        <option value="1.1">+10% (minimalne)</option>
+                                        <option value="1.25" selected>+25% (zalecane)</option>
+                                        <option value="1.5">+50% (znaczne)</option>
+                                        <option value="2.0">+100% (podwojenie)</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="checkbox-group">
+                                    <label><input type="checkbox" id="augUseParaphrasing" checked> Parafraza pytań</label>
+                                    <label><input type="checkbox" id="augUseReordering" checked> Zmiana kolejności</label>
+                                    <label><input type="checkbox" id="augUseQA2Instruction" checked> Q&A → instrukcje</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="tab-content" id="reasoning-templates">
+                    <div class="card">
+                        <h3>Szablony śladu rozumowania</h3>
+                        <p>Skonfiguruj strukture śladów rozumowania (reasoning traces) dla polskojęzycznych modeli weterynaryjnych z MLX-LM.</p>
+                        
+                        <div class="input-group">
+                            <label for="reasoningTemplate">Wybierz szablon</label>
+                            <select id="reasoningTemplate">
+                                <option value="cot">Chain-of-Thought (standardowy)</option>
+                                <option value="step-by-step" selected>Krok po kroku (weterynaryjny)</option>
+                                <option value="self-consistency">Wiele ścieżek rozumowania</option>
+                                <option value="custom">Własny format</option>
+                            </select>
+                        </div>
+                        
+                        <div class="reasoning-template" id="template-editor">
+                            <h4>Krok po kroku (weterynaryjny)</h4>
+                            
+                            <div class="template-section">
+                                <strong>1. Analiza problemu:</strong>
+                                <p>Identyfikacja głównego problemu weterynaryjnego i kluczowych faktów.</p>
+                                <div class="example-highlight">
+                                    "Analizuję przypadek psa z wymiotami, biegunką i apatią. Kluczowe fakty: 3-letni labrador, objawy od 24h, brak gorączki, zjadł coś podejrzanego dzień wcześniej."
+                                </div>
+                            </div>
+                            
+                            <div class="template-section">
+                                <strong>2. Diagnostyka różnicowa:</strong>
+                                <p>Rozważenie możliwych przyczyn i różnicowanie.</p>
+                                <div class="example-highlight">
+                                    "Różnicowo należy rozważyć: 1) Zatrucie pokarmowe, 2) Ciało obce w przewodzie pokarmowym, 3) Zapalenie trzustki, 4) Infekcję wirusową (parwowiroza)."
+                                </div>
+                            </div>
+                            
+                            <div class="template-section">
+                                <strong>3. Plan diagnostyczny:</strong>
+                                <p>Zaplanowanie badań i testów diagnostycznych.</p>
+                                <div class="example-highlight">
+                                    "Plan diagnostyczny: 1) Badanie kliniczne z palpacją brzucha, 2) Podstawowe badania krwi (morfologia, biochemia), 3) Test SNAP na parwowirozę, 4) USG jamy brzusznej w razie potrzeby."
+                                </div>
+                            </div>
+                            
+                            <div class="template-section">
+                                <strong>4. Interpretacja wyników:</strong>
+                                <p>Analiza uzyskanych wyników badań.</p>
+                                <div class="example-highlight">
+                                    "W badaniu klinicznym bolesność brzucha, leukocytoza w morfologii, lekko podwyższona amylaza i lipaza. Test na parwowirozę ujemny."
+                                </div>
+                            </div>
+                            
+                            <div class="template-section">
+                                <strong>5. Rozpoznanie:</strong>
+                                <p>Postawienie rozpoznania na podstawie zebranych danych.</p>
+                                <div class="example-highlight">
+                                    "Najbardziej prawdopodobne rozpoznanie: ostre zapalenie trzustki wywołane prawdopodobnie spożyciem tłustego pokarmu."
+                                </div>
+                            </div>
+                            
+                            <div class="template-section">
+                                <strong>6. Plan terapeutyczny:</strong>
+                                <p>Zaplanowanie leczenia i postępowania.</p>
+                                <div class="example-highlight">
+                                    "Plan leczenia: 1) Hospitalizacja i płynoterapia, 2) Leki przeciwbólowe (butorfanol), 3) Leki przeciwwymiotne (maropitant), 4) Głodówka 24-48h, następnie dieta lekkostrawna, 5) Kontrola za 3 dni."
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="config-panel">
+                            <h4>Opcje przetwarzania rozumowania</h4>
+                            
+                            <div class="checkbox-group">
+                                <label><input type="checkbox" id="standardizeReasoning" checked> Standaryzuj rozumowanie wg szablonu</label>
+                                <label><input type="checkbox" id="translateReasoning"> Tłumacz rozumowanie na polski</label>
+                                <label><input type="checkbox" id="correctReasoning" checked> Popraw błędy merytoryczne</label>
+                                <label><input type="checkbox" id="addVetContext" checked> Dodaj kontekst weterynaryjny</label>
+                            </div>
+                            
+                            <div class="input-group">
+                                <label for="poSpecialties">Preferowane specjalności weterynaryjne</label>
+                                <select id="poSpecialties" multiple>
+                                    <option value="internal" selected>Interna</option>
+                                    <option value="surgery" selected>Chirurgia</option>
+                                    <option value="dermatology">Dermatologia</option>
+                                    <option value="cardiology">Kardiologia</option>
+                                    <option value="neurology">Neurologia</option>
+                                    <option value="orthopedics">Ortopedia</option>
+                                    <option value="ophthalmology">Okulistyka</option>
+                                    <option value="reproduction">Rozród</option>
+                                    <option value="dentistry">Stomatologia</option>
+                                    <option value="exotics">Zwierzęta egzotyczne</option>
+                                </select>
+                                <small>Trzymaj CTRL, aby wybrać wiele opcji</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="tab-content" id="export-options">
+                    <div class="card">
+                        <h3>Podział danych treningowych</h3>
+                        
+                        <div class="split-control">
+                            <div class="split-value">80%</div>
+                            <input type="range" id="trainTestSplit" min="60" max="90" value="80" class="split-slider">
+                            <div class="split-value">20%</div>
+                        </div>
+                        
+                        <p style="text-align: center;">
+                            <span class="split-value" id="trainSplitValue">80%</span> danych treningowych,
+                            <span class="split-value" id="testSplitValue">20%</span> danych testowych
+                        </p>
+                        
+                        <div class="checkbox-group" style="justify-content: center; margin-top: 15px;">
+                            <label><input type="checkbox" id="useStratifiedSplit" checked> Stratyfikowany podział</label>
+                            <div class="tooltip">ℹ️
+                                <span class="tooltiptext">Zachowuje proporcje typów próbek i specjalizacji w zbiorach treningowym i testowym</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <h3>Format wyjściowy</h3>
+                        
+                        <div class="input-group">
+                            <label for="outputFormat">Format finalnego datasetu</label>
+                            <select id="outputFormat">
+                                <option value="jsonl" selected>JSONL (linia per przykład)</option>
+                                <option value="hf">Hugging Face Dataset</option>
+                                <option value="arrow">Apache Arrow</option>
+                                <option value="mlx">MLX-LM Native</option>
+                                <option value="parquet">Parquet</option>
+                            </select>
+                        </div>
+                        
+                        <div id="mlxOptions" style="display: block;">
+                            <div class="config-panel">
+                                <h4>Opcje MLX-LM</h4>
+                                
+                                <div class="input-group">
+                                    <label for="mlxTokenizer">Tokenizer</label>
+                                    <select id="mlxTokenizer">
+                                        <option value="qwen">Qwen Tokenizer</option>
+                                        <option value="llama">Llama Tokenizer</option>
+                                        <option value="mistral">Mistral Tokenizer</option>
+                                        <option value="mixtral">Mixtral Tokenizer</option>
+                                        <option value="mpt">MPT Tokenizer</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="input-group">
+                                    <label for="mlxTemplate">MLX-LM Template</label>
+                                    <select id="mlxTemplate">
+                                        <option value="polski-vet" selected>Polski-Weterynaryjny (zalecany)</option>
+                                        <option value="polaris">Polaris</option>
+                                        <option value="chatml">ChatML</option>
+                                        <option value="llama3">Llama 3</option>
+                                        <option value="custom">Własny</option>
+                                    </select>
+                                </div>
+                                
+                                <div id="customTemplateEditor" style="display: none;">
+                                    <div class="input-group">
+                                        <label for="customTemplate">Własny format szablonu</label>
+                                        <textarea id="customTemplate" placeholder="Wprowadź swój szablon MLX-LM..."></textarea>
+                                    </div>
+                                </div>
+                                
+                                <div class="code-block">
+                                    <pre><code>{
+  "messages": [
+    {"role": "system", "content": "[SYSTEM PROMPT]"},
+    {"role": "user", "content": "[INSTRUCTION] [INPUT]"},
+    {"role": "assistant", "content": "[OUTPUT]"},
+    {"role": "assistant", "content": "[REASONING]", "metadata": {"type": "reasoning"}}
+  ]
+}</code></pre>
+                                </div>
+                                
+                                <div class="checkbox-group">
+                                    <label><input type="checkbox" id="enablePretokenization" checked> Pretokenizacja datasetu</label>
+                                    <div class="tooltip">ℹ️
+                                        <span class="tooltiptext">Przyspiesza trening poprzez tokenizację podczas eksportu</span>
+                                    </div>
+                                </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <h3>Opcje metadanych</h3>
+                        
+                        <div class="checkbox-group">
+                            <label><input type="checkbox" id="includeSourceInfo" checked> Informacje o źródle danych</label>
+                            <label><input type="checkbox" id="includeProcessingInfo" checked> Informacje o przetwarzaniu</label>
+                            <label><input type="checkbox" id="includeQualityScores" checked> Ocena jakości przykładów</label>
+                            <label><input type="checkbox" id="includeDomainTags" checked> Tagi dziedzinowe</label>
+                        </div>
+                        
+                        <div class="input-group">
+                            <label for="customMetadata">Dodatkowe metadane (JSON)</label>
+                            <textarea id="customMetadata" placeholder='{"project": "Polski model weterynaryjny", "version": "1.0", "author": "Twoje nazwisko"}'></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <h3>Finalizacja</h3>
+                        
+                        <div style="text-align: center;">
+                            <button class="button success" id="exportDataset" style="padding: 12px 24px; font-size: 16px;">
+                                Wygeneruj dataset treningowy
+                            </button>
+                        </div>
+                        
+                        <div class="progress-container" id="exportProgress" style="display: none;">
+                            <div class="progress-bar" style="width: 0%"></div>
+                            <div class="progress-text">0%</div>
+                        </div>
+                        
+                        <div id="exportResult" style="display: none;">
+                            <!-- Tutaj będą wyniki eksportu -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="modal" id="previewModal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Podgląd przykładów</h2>
+            <div id="examplePreview">
+                <!-- Tutaj będą generowane przykłady -->
+            </div>
+        </div>
+    </div>
+    
+    <div class="modal" id="analysisModal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Analiza datasetu</h2>
+            <div id="datasetAnalysis">
+                <!-- Tutaj będą wyniki analizy -->
+            </div>
+        </div>
+    </div>
+    
+    <footer>
+        <div class="container">
+            <p>AnyDataset &copy; 2025 | Developed by Maciej Gad & Klaudiusz | Polska platforma weterynaryjnego AI</p>
+        </div>
+    </footer>
+    
+    <script>
+        // Podstawowa obsługa interfejsu
+        document.addEventListener('DOMContentLoaded', function() {
+            // Obsługa zakładek
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    // Ukryj wszystkie zakładki
+                    document.querySelectorAll('.tab-content').forEach(content => {
+                        content.classList.remove('active');
+                    });
+                    
+                    // Usuń aktywny stan ze wszystkich zakładek
+                    tabs.forEach(t => {
+                        t.classList.remove('active');
+                    });
+                    
+                    // Aktywuj aktualną zakładkę
+                    this.classList.add('active');
+                    document.getElementById(this.getAttribute('data-tab')).classList.add('active');
+                });
+            });
+            
+            // Obsługa drag and drop dla wyboru datasetów
+            const draggableItems = document.querySelectorAll('.draggable-item');
+            const dropContainers = document.querySelectorAll('.draggable-container');
+            
+            draggableItems.forEach(item => {
+                item.addEventListener('dragstart', dragStart);
+            });
+            
+            dropContainers.forEach(container => {
+                container.addEventListener('dragover', dragOver);
+                container.addEventListener('dragenter', dragEnter);
+                container.addEventListener('dragleave', dragLeave);
+                container.addEventListener('drop', drop);
+            });
+            
+            function dragStart(e) {
+                e.dataTransfer.setData('text/plain', e.target.getAttribute('data-id'));
+                setTimeout(() => {
+                    e.target.classList.add('dragging');
+                }, 0);
+            }
+            
+            function dragOver(e) {
+                e.preventDefault();
+            }
+            
+            function dragEnter(e) {
+                e.preventDefault();
+                this.classList.add('drag-over');
+            }
+            
+            function dragLeave(e) {
+                this.classList.remove('drag-over');
+            }
+            
+            function drop(e) {
+                e.preventDefault();
+                this.classList.remove('drag-over');
+                
+                const datasetId = e.dataTransfer.getData('text/plain');
+                const item = document.querySelector(`[data-id="${datasetId}"]`);
+                
+                if (item) {
+                    // Jeśli element jest upuszczany na inny kontener niż jego rodzic
+                    if (item.parentElement !== this) {
+                        // Sklonuj element i dodaj do nowego kontenera
+                        const clone = item.cloneNode(true);
+                        clone.addEventListener('dragstart', dragStart);
+                        this.appendChild(clone);
+                        
+                        // Usuń oryginał z poprzedniego kontenera
+                        item.remove();
+                        
+                        // Aktualizuj statystyki
+                        updateStatistics();
+                    }
+                }
+            }
+            
+            // Obsługa modali
+            document.querySelectorAll('.modal .close').forEach(close => {
+                close.addEventListener('click', function() {
+                    this.closest('.modal').style.display = 'none';
+                });
+            });
+            
+            document.getElementById('previewDataset').addEventListener('click', function() {
+                document.getElementById('previewModal').style.display = 'flex';
+                
+                // Tutaj można dodać kod generujący podgląd
+                document.getElementById('examplePreview').innerHTML = `
+                    <div style="margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 20px;">
+                        <h3>Przykład 1</h3>
+                        <p><strong>Instruction:</strong> Dokonaj diagnozy różnicowej u 5-letniego kota z objawami wielomoczu, wzmożonego pragnienia i utraty wagi.</p>
+                        <p><strong>Input:</strong> Kot, 5 lat, niekastrowany, waga 3.8kg (spadek z 4.5kg w ciągu miesiąca). Objawy: poliuria, polidypsja, utrata masy ciała mimo dobrego apetytu. Badanie kliniczne: odwodnienie 5%, poza tym bez odchyleń.</p>
+                        <p><strong>Output:</strong> Najbardziej prawdopodobne rozpoznania to: cukrzyca, przewlekła choroba nerek lub nadczynność tarczycy. Zalecam wykonanie badań krwi (morfologia, profil biochemiczny z glukozą, T4) oraz badanie ogólne moczu z USG moczu.</p>
+                        <p><strong>Reasoning:</strong> <span style="color: #27ae60;">Rozumowanie wysokiej jakości</span></p>
+                        <div style="background-color: #f9f9f9; padding: 10px; border-left: 3px solid #27ae60;">
+                            <p><strong>1. Analiza problemu:</strong> Mamy 5-letniego niekastrowanego kota z objawami PU/PD (poliuria/polidypsja) oraz utratą masy ciała mimo zachowanego apetytu. Badanie kliniczne wykazało tylko odwodnienie.</p>
+                            <p><strong>2. Diagnostyka różnicowa:</strong> Klasyczna triada objawów PU/PD + utrata masy ciała przy dobrym apetycie sugeruje trzy główne schorzenia u kotów:</p>
+                            <ul>
+                                <li>Cukrzyca - bardzo prawdopodobna, szczególnie u starszych, otyłych kotów</li>
+                                <li>Przewlekła choroba nerek - częsta u kotów, ale zwykle u starszych (>7 lat)</li>
+                                <li>Nadczynność tarczycy - typowa dla starszych kotów (>8 lat), więc mniej prawdopodobna przy 5 latach</li>
+                            </ul>
+                            <p>Rzadziej: infekcja układu moczowego, kamica nerkowa, choroby wątroby, nadczynność przytarczyc.</p>
+                            <p><strong>3. Plan diagnostyczny:</strong> Należy wykonać:</p>
+                            <ul>
+                                <li>Morfologię krwi - ocena stanu ogólnego</li>
+                                <li>Profil biochemiczny z glukozą - diagnostyka cukrzycy i ocena funkcji nerek (kreatynina, mocznik)</li>
+                                <li>T4 - diagnostyka nadczynności tarczycy</li>
+                                <li>Badanie ogólne moczu z USG - ocena funkcji nerek i wykluczenie infekcji</li>
+                            </ul>
+                            <p><strong>4. Interpretacja i rozpoznanie:</strong> Bez wyników badań nie można postawić ostatecznej diagnozy, ale najbardziej prawdopodobne są: cukrzyca, PChN lub nadczynność tarczycy. Wiek pacjenta (5 lat) sprawia, że cukrzyca i PChN są nieco bardziej prawdopodobne niż nadczynność tarczycy.</p>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 20px;">
+                        <h3>Przykład 2</h3>
+                        <p><strong>Instruction:</strong> Zaproponuj protokół anestezjologiczny dla 3-letniego psa rasy border collie poddawanego zabiegowi usunięcia ciała obcego z jelita cienkiego.</p>
+                        <p><strong>Input:</strong> Pies, border collie, 3 lata, 18kg, ASA II. Planowany zabieg: laparotomia i enterotomia w celu usunięcia ciała obcego z jelita cienkiego.</p>
+                        <p><strong>Output:</strong> Protokół anestezjologiczny: premedykacja (acepromazyna 0.02mg/kg + metadon 0.2mg/kg IM), indukcja (propofol 4mg/kg IV), intubacja i podtrzymanie (izofluran 1.5-2.5% w tlenie). Analgezja śródoperacyjna: fentanyl (bolus 2-5μg/kg IV w razie potrzeby). Płynoterapia: krystaloidy (Plasmalyte 5-10ml/kg/h). Monitorowanie: EKG, pulsoksymetria, kapnografia, ciśnienie tętnicze, temperatura. Analgezja pooperacyjna: metadon (0.1-0.2mg/kg IM/IV co 4h) lub buprenorfina (0.01-0.02mg/kg IM/IV co 6-8h) oraz meloksykam (0.2mg/kg SC pierwsza dawka, następnie 0.1mg/kg PO).</p>
+                        <p><strong>Reasoning:</strong> <span style="color: #e67e22;">Rozumowanie średniej jakości</span></p>
+                        <div style="background-color: #f9f9f9; padding: 10px; border-left: 3px solid #e67e22;">
+                            <p>Plan anestezji dla psa poddawanego zabiegowi usunięcia ciała obcego z jelita cienkiego.</p>
+                            <p>Pacjent: border collie, 3 lata, 18kg, ASA II (łagodna choroba układowa bez ograniczeń czynnościowych)</p>
+                            <p>1. Premedykacja:</p>
+                            <ul>
+                                <li>Acepromazyna 0.02mg/kg IM - dla sedacji i uspokojenia</li>
+                                <li>Metadon 0.2mg/kg IM - silny opioid zapewniający analgezję</li>
+                            </ul>
+                            <p>2. Indukcja:</p>
+                            <ul>
+                                <li>Propofol 4mg/kg IV (podawać do efektu)</li>
+                                <li>Intubacja dotchawicza</li>
+                            </ul>
+                            <p>3. Podtrzymanie:</p>
+                            <ul>
+                                <li>Izofluran 1.5-2.5% w tlenie</li>
+                            </ul>
+                            <p>4. Płynoterapia:</p>
+                            <ul>
+                                <li>Krystaloidy (Plasmalyte) 5-10ml/kg/h</li>
+                            </ul>
+                            <p>5. Analgezja śródoperacyjna:</p>
+                            <ul>
+                                <li>Fentanyl - bolus 2-5μg/kg IV w razie potrzeby (oznaki bólu)</li>
+                            </ul>
+                            <p>6. Monitorowanie:</p>
+                            <ul>
+                                <li>EKG, pulsoksymetria, kapnografia, ciśnienie tętnicze, temperatura</li>
+                            </ul>
+                            <p>7. Analgezja pooperacyjna:</p>
+                            <ul>
+                                <li>Metadon 0.1-0.2mg/kg IM/IV co 4h lub Buprenorfina 0.01-0.02mg/kg IM/IV co 6-8h</li>
+                                <li>Meloksykam 0.2mg/kg SC pierwsza dawka, następnie 0.1mg/kg PO</li>
+                            </ul>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            document.getElementById('analyzeDataset').addEventListener('click', function() {
+                document.getElementById('analysisModal').style.display = 'flex';
+                
+                // Tutaj można dodać kod generujący analizę
+                document.getElementById('datasetAnalysis').innerHTML = `
+                    <div class="card">
+                        <h3>Statystyki datasetu</h3>
+                        <div style="display: flex; flex-wrap: wrap; gap: 20px;">
+                            <div class="stat-card" style="flex: 1; min-width: 200px;">
+                                <div class="stat-label">Łączna liczba przykładów</div>
+                                <div class="stat-value">4,820</div>
+                            </div>
+                            <div class="stat-card" style="flex: 1; min-width: 200px;">
+                                <div class="stat-label">Po deduplikacji</div>
+                                <div class="stat-value">4,310</div>
+                            </div>
+                            <div class="stat-card" style="flex: 1; min-width: 200px;">
+                                <div class="stat-label">Z rozumowaniem</div>
+                                <div class="stat-value">3,750</div>
+                                <div class="stat-label">87%</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <h3>Rozkład typów przykładów</h3>
+                        <div style="height: 250px; background-color: #f5f5f5; margin: 20px 0; border-radius: 8px; padding: 10px; text-align: center;">
+                            [Wykres rozkładu typów danych]
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <h3>Rozkład specjalizacji weterynaryjnych</h3>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Specjalizacja</th>
+                                    <th>Liczba przykładów</th>
+                                    <th>Procent</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Choroby wewnętrzne</td>
+                                    <td>1,450</td>
+                                    <td>33.6%</td>
+                                </tr>
+                                <tr>
+                                    <td>Chirurgia</td>
+                                    <td>980</td>
+                                    <td>22.7%</td>
+                                </tr>
+                                <tr>
+                                    <td>Dermatologia</td>
+                                    <td>620</td>
+                                    <td>14.4%</td>
+                                </tr>
+                                <tr>
+                                    <td>Kardiologia</td>
+                                    <td>480</td>
+                                    <td>11.1%</td>
+                                </tr>
+                                <tr>
+                                    <td>Inne specjalizacje</td>
+                                    <td>780</td>
+                                    <td>18.2%</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="card">
+                        <h3>Jakość rozumowania</h3>
+                        <div style="height: 200px; background-color: #f5f5f5; margin: 20px 0; border-radius: 8px; padding: 10px; text-align: center;">
+                            [Wykres jakości rozumowania]
+                        </div>
+                        <p>Średni score jakości: <strong>7.8/10</strong></p>
+                    </div>
+                    
+                    <div class="card">
+                        <h3>Rekomendacje</h3>
+                        <ul>
+                            <li>Zwiększyć liczbę przykładów z neurologii i okulistyki weterynaryjnej</li>
+                            <li>Dodać więcej przypadków zwierząt egzotycznych (obecnie tylko 5%)</li>
+                            <li>Ustandaryzować format rozumowania w 215 przykładach (5% datasetu)</li>
+                            <li>Poprawić jakość polskiego języka w tłumaczonych przykładach</li>
+                        </ul>
+                    </div>
+                `;
+            });
+            
+            // Obsługa przycisku do generowania finalnego datasetu
+            document.getElementById('exportDataset').addEventListener('click', function() {
+                // Pokaż pasek postępu
+                document.getElementById('exportProgress').style.display = 'block';
+                
+                // Symulacja procesu generowania datasetu
+                let progress = 0;
+                const progressBar = document.querySelector('#exportProgress .progress-bar');
+                const progressText = document.querySelector('#exportProgress .progress-text');
+                
+                const interval = setInterval(() => {
+                    progress += 5;
+                    progressBar.style.width = `${progress}%`;
+                    progressText.textContent = `${progress}%`;
+                    
+                    if (progress >= 100) {
+                        clearInterval(interval);
+                        document.getElementById('exportResult').style.display = 'block';
+                        document.getElementById('exportResult').innerHTML = `
+                            <div class="alert success">
+                                Dataset został pomyślnie wygenerowany!
+                            </div>
+                            <div style="margin-top: 15px; text-align: center;">
+                                <a href="#" class="button">Pobierz dataset</a>
+                                <a href="#" class="button info">Zobacz szczegóły</a>
+                            </div>
+                        `;
+                    }
+                }, 200);
+            });
+            
+            // Aktualizacja jakości datasetu
+            function updateStatistics() {
+                const selectedCount = document.querySelectorAll('#selectedDatasets .draggable-item').length;
+                
+                // Aktualizacja całkowitej liczby przykładów
+                let totalExamples = 0;
+                document.querySelectorAll('#selectedDatasets .draggable-item').forEach(item => {
+                    // Przykładowa ekstrakcja liczby przykładów z tekstu
+                    const match = item.textContent.match(/\((\d+) przykładów\)/);
+                    if (match && match[1]) {
+                        totalExamples += parseInt(match[1]);
+                    }
+                });
+                
+                document.getElementById('totalExamples').textContent = totalExamples;
+                document.getElementById('uniqueExamples').textContent = Math.floor(totalExamples * 0.9); // Symulacja deduplikacji
+                
+                // Aktualizacja wskaźnika jakości
+                const qualityIndicator = document.getElementById('qualityIndicator');
+                let quality = 0;
+                
+                if (selectedCount === 0) {
+                    quality = 0;
+                } else if (selectedCount === 1) {
+                    quality = 30; // Podstawowa jakość
+                } else if (selectedCount === 2) {
+                    quality = 50; // Lepsza jakość
+                } else if (selectedCount >= 3) {
+                    quality = 70; // Dobra jakość
+                }
+                
+                if (totalExamples > 3000) {
+                    quality += 15; // Bonus za dużą ilość danych
+                }
+                
+                // Ogranicz do 100%
+                quality = Math.min(quality, 100);
+                qualityIndicator.style.left = `${quality}%`;
+            }
+            
+            // Obsługa wartości deduplikacji
+            const dedupSlider = document.getElementById('deduplicationThreshold');
+            const dedupValue = document.getElementById('dedupThresholdValue');
+            
+            dedupSlider.addEventListener('input', function() {
+                dedupValue.textContent = this.value;
+            });
+            
+            // Obsługa wartości podziału train/test
+            const splitSlider = document.getElementById('trainTestSplit');
+            const trainSplit = document.getElementById('trainSplitValue');
+            const testSplit = document.getElementById('testSplitValue');
+            
+            splitSlider.addEventListener('input', function() {
+                const trainValue = this.value;
+                const testValue = 100 - trainValue;
+                trainSplit.textContent = `${trainValue}%`;
+                testSplit.textContent = `${testValue}%`;
+            });
+            
+            // Obsługa tagów filtrowania
+            const filterTagsInput = document.getElementById('filterTags');
+            const filterTagsList = document.getElementById('filterTagsList');
+            
+            filterTagsInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const tags = this.value.split(',').map(tag => tag.trim()).filter(tag => tag);
+                    
+                    tags.forEach(tag => {
+                        // Sprawdź, czy tag już istnieje
+                        if (!document.querySelector(`.filter-tag[data-tag="${tag}"]`)) {
+                            const tagElement = document.createElement('div');
+                            tagElement.className = 'filter-tag';
+                            tagElement.setAttribute('data-tag', tag);
+                            tagElement.innerHTML = `${tag} <span class="remove">×</span>`;
+                            
+                            tagElement.querySelector('.remove').addEventListener('click', function() {
+                                tagElement.remove();
+                            });
+                            
+                            filterTagsList.appendChild(tagElement);
+                        }
+                    });
+                    
+                    this.value = '';
+                }
+            });
+            
+            // Obsługa przełącznika augmentacji
+            const enableAugmentation = document.getElementById('enableAugmentation');
+            const augmentationOptions = document.getElementById('augmentationOptions');
+            
+            enableAugmentation.addEventListener('change', function() {
+                augmentationOptions.style.display = this.checked ? 'block' : 'none';
+            });
+            
+            // Obsługa szablonu MLX
+            const mlxTemplate = document.getElementById('mlxTemplate');
+            const customTemplateEditor = document.getElementById('customTemplateEditor');
+            
+            mlxTemplate.addEventListener('change', function() {
+                customTemplateEditor.style.display = this.value === 'custom' ? 'block' : 'none';
+            });
+        });
+    </script>
+</body>
+</html>
