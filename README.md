@@ -95,20 +95,16 @@ nano .env  # or use any text editor
 
 ## Usage
 
-**Option A: Start with Python directly**
+Run the application using the startup script:
 ```bash
-python app/app.py
+# Using Python
+python run.py
+
+# Or directly (if script is executable)
+./run.py
 ```
 
-**Option B: Start with uvicorn directly**
-```bash
-uvicorn app.app:app --host 0.0.0.0 --port 8000
-```
-
-**Option C: Start with uv (recommended)**
-```bash
-uv run app/app.py
-```
+The startup script handles initialization and automatically selects the best available method to run the application (uv, uvicorn, or Python).
 
 Then access the web interface at http://localhost:8000
 

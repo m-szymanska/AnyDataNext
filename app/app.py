@@ -101,8 +101,23 @@ APP_DIR = Path(os.path.dirname(os.path.abspath(__file__)))
 UPLOAD_DIR = APP_DIR / "uploads"
 OUTPUT_DIR = APP_DIR / "ready"
 PROGRESS_DIR = APP_DIR / "progress"
+
+# Ensure required directories exist with proper permissions
 for dir_path in [UPLOAD_DIR, OUTPUT_DIR, PROGRESS_DIR]:
-    dir_path.mkdir(exist_ok=True)
+    try:
+        dir_path.mkdir(exist_ok=True)
+        # Check write permissions
+        test_file = dir_path / ".write_test"
+        with open(test_file, "w") as f:
+            f.write("test")
+        if test_file.exists():
+            test_file.unlink()  # Remove test file
+            logger.info(f"Directory {dir_path} is writable")
+        else:
+            logger.warning(f"Failed to create test file in {dir_path}")
+    except Exception as e:
+        logger.error(f"Error creating or checking directory {dir_path}: {e}")
+        logger.warning(f"Application may fail if {dir_path} is not writable")
 
 # Get available models based on API keys
 AVAILABLE_MODELS = get_available_models(filter_by_api_keys=True)
