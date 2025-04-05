@@ -11,9 +11,8 @@ from pathlib import Path
 # Optional: advanced NLP for chunking
 try:
     import nltk
-    nltk.download('punkt_tab')
+    # Pamiętaj: python -m nltk.downloader punkt
     nltk_available = True
-    # python -m nltk.downloader punkt
 except ImportError:
     nltk_available = False
 
@@ -31,7 +30,25 @@ except ImportError:
 # Constants for chunking
 MAX_CHUNK_SIZE = 1500  # Maximum number of characters in a chunk
 MIN_CHUNK_SIZE = 100   # Minimum chunk size to keep
-CHUNK_OVERLAP = 0      # Overlap in characters (możesz ustawić np. 100, jeśli chcesz nakładkę)
+CHUNK_OVERLAP = 0      # Overlap in characters (np. 100 jeśli chcesz nakładkę)
+
+def _clean_whitespace(text: str) -> str:
+    """
+    Reduce excessive whitespace but keep double newlines as paragraph boundaries.
+    - Zamienia wielokrotne spacje w pojedynczą.
+    - Ogranicza >=3 pustych linii do maksymalnie 2.
+    """
+    # 1. Zamień wielokrotne spacje/taby w jednej linii na pojedynczą spację:
+    #    [^\S\r\n] oznacza "whitespace niebędący \r ani \n"
+    text = re.sub(r'[^\S\r\n]+', ' ', text)
+    
+    # 2. Zredukuj wielokrotne puste linie do maks. dwóch \n\n
+    #    np. 3 i więcej newlinów -> 2 newliny
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    
+    # trim trailing spaces
+    text = text.strip()
+    return text
 
 def split_into_sentences(text: str) -> List[str]:
     """
@@ -43,6 +60,7 @@ def split_into_sentences(text: str) -> List[str]:
         sentences = sent_tokenize(text)
         return [s.strip() for s in sentences if s.strip()]
     else:
+        # Prosty fallback
         pattern = r'(?<=[.!?])\s+'
         raw_sentences = re.split(pattern, text)
         sentences = [s.strip() for s in raw_sentences if s.strip()]
@@ -92,7 +110,6 @@ def chunk_text(text: str,
                             chunk_temp += w
                         else:
                             if chunk_temp:
-                                # flush
                                 results.append(chunk_temp)
                             chunk_temp = w
                     if chunk_temp:
@@ -108,13 +125,12 @@ def chunk_text(text: str,
                             results.append(current_buffer)
                         current_buffer = sentence
             
-            # flush buffer
             if current_buffer:
                 results.append(current_buffer)
                 current_buffer = ""
         else:
             # paragraph smaller than max_size
-            if (len(current_buffer) + len(paragraph) + 2) <= max_size:  # +2 for \n\n
+            if (len(current_buffer) + len(paragraph) + 2) <= max_size:
                 if current_buffer:
                     current_buffer += "\n\n"
                 current_buffer += paragraph
@@ -123,7 +139,6 @@ def chunk_text(text: str,
                     results.append(current_buffer)
                 current_buffer = paragraph
     
-    # flush
     if current_buffer:
         results.append(current_buffer)
     
@@ -163,10 +178,8 @@ def chunk_text(text: str,
     else:
         return final_chunks
 
+
 def parse_txt(file_path: str, logger) -> List[Dict[str, Any]]:
-    """
-    Parse a text file into improved chunks.
-    """
     logger.info(f"[parse_txt] Parsing .txt file: {file_path}")
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
@@ -174,6 +187,9 @@ def parse_txt(file_path: str, logger) -> List[Dict[str, Any]]:
     except Exception as e:
         logger.error(f"[parse_txt] Error reading .txt file: {file_path}. Details: {e}")
         raise
+    
+    # Usuwamy nadmiar whitespace
+    text_content = _clean_whitespace(text_content)
     
     chunks = chunk_text(text_content, max_size=MAX_CHUNK_SIZE)
     records = []
@@ -192,11 +208,8 @@ def parse_txt(file_path: str, logger) -> List[Dict[str, Any]]:
     logger.info(f"[parse_txt] Created {len(records)} records from text file (chunked).")
     return records
 
+
 def parse_md(file_path: str, logger) -> List[Dict[str, Any]]:
-    """
-    Parse a markdown file. We treat headers as potential boundaries, 
-    then chunk the sections if they are too large.
-    """
     logger.info(f"[parse_md] Parsing .md file: {file_path}")
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
@@ -205,10 +218,11 @@ def parse_md(file_path: str, logger) -> List[Dict[str, Any]]:
         logger.error(f"[parse_md] Error reading .md file: {file_path}. Details: {e}")
         raise
     
+    text_content = _clean_whitespace(text_content)
+    
     # Split by top-level headers
     sections = re.split(r'(?=\n#{1,6}\s)', text_content)
     if len(sections) <= 1:
-        # fallback to parse_txt
         logger.info("[parse_md] No major headers found, falling back to parse_txt logic")
         return parse_txt(file_path, logger)
     
@@ -217,7 +231,6 @@ def parse_md(file_path: str, logger) -> List[Dict[str, Any]]:
         section = section.strip()
         if not section:
             continue
-        # chunk the section
         parted = chunk_text(section, max_size=MAX_CHUNK_SIZE)
         all_chunks.extend(parted)
     
@@ -236,66 +249,64 @@ def parse_md(file_path: str, logger) -> List[Dict[str, Any]]:
     logger.info(f"[parse_md] Created {len(records)} records from markdown file")
     return records
 
+
 def parse_csv(file_path: str, logger) -> List[Dict[str, Any]]:
-    """
-    Parse a CSV file. If any cell is too large, chunk it.
-    """
     logger.info(f"[parse_csv] Parsing .csv file: {file_path}")
     parsed_data = []
-    
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
-            dialect = csv.Sniffer().sniff(f.read(2048))
-            f.seek(0)
-            csv_reader = csv.DictReader(f, dialect=dialect)
-            rows = list(csv_reader)
+            raw_data = f.read()
+        raw_data = _clean_whitespace(raw_data)
+        
+        # Ponownie wczytujemy do CSV
+        dialect = csv.Sniffer().sniff(raw_data[:2048])
+        f2 = io.StringIO(raw_data)
+        csv_reader = csv.DictReader(f2, dialect=dialect)
+        rows = list(csv_reader)
+        
+        headers = csv_reader.fieldnames or []
+        if not rows:
+            logger.warning(f"[parse_csv] CSV file is empty or has no data: {file_path}")
+            return []
+        
+        for i, row in enumerate(rows):
+            row_text_parts = []
+            for h in headers:
+                val = row.get(h, "")
+                if val:
+                    row_text_parts.append(f"{h}: {val}")
             
-            headers = csv_reader.fieldnames or []
-            
-            if not rows:
-                logger.warning(f"[parse_csv] CSV file is empty or has no data: {file_path}")
-                return []
-            
-            for i, row in enumerate(rows):
-                # Flatten row into text
-                row_text_parts = []
-                for h in headers:
-                    val = row.get(h, "")
-                    if val:
-                        row_text_parts.append(f"{h}: {val}")
-                
-                row_text = "\n".join(row_text_parts)
-                
-                if len(row_text) <= MAX_CHUNK_SIZE:
+            row_text = "\n".join(row_text_parts)
+            if len(row_text) <= MAX_CHUNK_SIZE:
+                parsed_data.append({
+                    "instruction": "",
+                    "input": row_text,
+                    "output": "",
+                    "metadata": {
+                        "row_index": i,
+                        "source_file": os.path.basename(file_path)
+                    }
+                })
+            else:
+                splitted = chunk_text(row_text, max_size=MAX_CHUNK_SIZE)
+                for j, chunk in enumerate(splitted):
                     parsed_data.append({
                         "instruction": "",
-                        "input": row_text,
+                        "input": chunk,
                         "output": "",
                         "metadata": {
                             "row_index": i,
+                            "chunk_index": j,
                             "source_file": os.path.basename(file_path)
                         }
                     })
-                else:
-                    # chunk it
-                    splitted = chunk_text(row_text, max_size=MAX_CHUNK_SIZE)
-                    for j, chunk in enumerate(splitted):
-                        parsed_data.append({
-                            "instruction": "",
-                            "input": chunk,
-                            "output": "",
-                            "metadata": {
-                                "row_index": i,
-                                "chunk_index": j,
-                                "source_file": os.path.basename(file_path)
-                            }
-                        })
     except Exception as e:
         logger.error(f"[parse_csv] Error parsing CSV: {e}")
         raise
     
     logger.info(f"[parse_csv] Created {len(parsed_data)} records from CSV")
     return parsed_data
+
 
 def _process_json_item(item: Any, logger=None, path="root") -> List[Dict[str, Any]]:
     """
@@ -304,7 +315,6 @@ def _process_json_item(item: Any, logger=None, path="root") -> List[Dict[str, An
     we treat it as a direct record.
     """
     records = []
-    
     if isinstance(item, dict):
         # If directly matches instruction/input
         if all(k in item for k in ['instruction','input']):
@@ -317,13 +327,12 @@ def _process_json_item(item: Any, logger=None, path="root") -> List[Dict[str, An
             records.append(rec)
             return records
         
-        # Check if there's a large text field
         text_keys = ["body","content","text","description"]
         large_field_found = False
         for tk in text_keys:
             if tk in item and isinstance(item[tk], str) and len(item[tk])>MAX_CHUNK_SIZE:
-                # chunk it
-                splitted = chunk_text(item[tk], max_size=MAX_CHUNK_SIZE)
+                cleaned = _clean_whitespace(item[tk])
+                splitted = chunk_text(cleaned, max_size=MAX_CHUNK_SIZE)
                 for i, chunk in enumerate(splitted):
                     records.append({
                         "instruction": "",
@@ -337,11 +346,7 @@ def _process_json_item(item: Any, logger=None, path="root") -> List[Dict[str, An
                     })
                 large_field_found = True
         
-        if large_field_found:
-            # skip deeper recursion?
-            pass
-        else:
-            # go deeper
+        if not large_field_found:
             for k,v in item.items():
                 sub_path = f"{path}.{k}" if path else k
                 sub_records = _process_json_item(v, logger, sub_path)
@@ -355,7 +360,8 @@ def _process_json_item(item: Any, logger=None, path="root") -> List[Dict[str, An
     
     elif isinstance(item, str):
         if len(item) > MAX_CHUNK_SIZE:
-            splitted = chunk_text(item, max_size=MAX_CHUNK_SIZE)
+            cleaned = _clean_whitespace(item)
+            splitted = chunk_text(cleaned, max_size=MAX_CHUNK_SIZE)
             for i, chunk in enumerate(splitted):
                 records.append({
                     "instruction": "",
@@ -372,17 +378,18 @@ def parse_json_file(file_path: str, logger) -> List[Dict[str, Any]]:
     logger.info(f"[parse_json_file] Parsing .json file: {file_path}")
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+            data = f.read()
+        data = _clean_whitespace(data)
+        parsed_json = json.loads(data)
     except Exception as e:
         logger.error(f"[parse_json_file] Error parsing JSON: {e}")
         raise
     
-    recs = _process_json_item(data, logger=logger)
+    recs = _process_json_item(parsed_json, logger=logger)
     if not recs:
-        # fallback single record with raw
         return [{
             "instruction":"",
-            "input": json.dumps(data, indent=2, ensure_ascii=False),
+            "input": data,
             "output":"",
             "metadata": {"source_file": os.path.basename(file_path)}
         }]
@@ -394,25 +401,29 @@ def parse_jsonl_file(file_path: str, logger) -> List[Dict[str, Any]]:
     results = []
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
-            for i, line in enumerate(f, start=1):
-                line=line.strip()
-                if not line:
-                    continue
-                try:
-                    obj = json.loads(line)
-                    recs = _process_json_item(obj, logger=logger, path=f"line_{i}")
-                    if not recs:
-                        results.append({
-                            "instruction":"",
-                            "input": line,
-                            "output":"",
-                            "metadata":{"line_number": i}
-                        })
-                    else:
-                        results.extend(recs)
-                except json.JSONDecodeError as e:
-                    logger.error(f"[parse_jsonl_file] Decoding error line {i}: {e}")
-                    pass
+            lines = f.readlines()
+        
+        # Usuwamy whitespace z każdej linii
+        cleaned_lines = [line.strip() for line in lines if line.strip()]
+        
+        for i, line in enumerate(cleaned_lines, start=1):
+            try:
+                obj = json.loads(line)
+                sub_records = _process_json_item(obj, logger=logger, path=f"line_{i}")
+                if not sub_records:
+                    results.append({
+                        "instruction":"",
+                        "input": line,
+                        "output":"",
+                        "metadata":{"line_number": i}
+                    })
+                else:
+                    results.extend(sub_records)
+            except json.JSONDecodeError as e:
+                logger.error(f"[parse_jsonl_file] Decoding error line {i}: {e}")
+                # Możesz tu przerwać lub pominąć
+                pass
+        
         logger.info(f"[parse_jsonl_file] Created {len(results)} records.")
         return results
     except Exception as e:
@@ -429,7 +440,9 @@ def parse_yaml_file(file_path: str, logger) -> List[Dict[str, Any]]:
     
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
-            data = yaml.safe_load(f)
+            raw_data = f.read()
+        raw_data = _clean_whitespace(raw_data)
+        data = yaml.safe_load(raw_data)
     except Exception as e:
         logger.error(f"[parse_yaml_file] Error loading YAML: {e}")
         raise
@@ -438,7 +451,7 @@ def parse_yaml_file(file_path: str, logger) -> List[Dict[str, Any]]:
     if not recs:
         return [{
             "instruction":"",
-            "input": yaml.dump(data, allow_unicode=True),
+            "input": raw_data,
             "output":"",
             "metadata": {"source_file": os.path.basename(file_path)}
         }]
@@ -451,38 +464,34 @@ def parse_docx(file_path: str, logger) -> List[Dict[str, Any]]:
         raise ImportError("python-docx or pdfminer not installed.")
     
     logger.info(f"[parse_docx] Parsing .docx file: {file_path}")
-    import docx
     try:
         doc = docx.Document(file_path)
     except Exception as e:
         logger.error(f"[parse_docx] Error reading DOCX: {e}")
         raise
     
-    # Extract paragraphs, including bullet list detection
-    # docx Paragraph objects may have style 'ListBullet', 'ListNumber', etc.
     sections = []
     current_heading = None
     current_section = []
     
     def flush_section():
         if current_section:
-            text = "\n".join(current_section).strip()
-            sections.append((current_heading, text))
+            merged = "\n".join(current_section).strip()
+            # wyczyść whitespace
+            merged = _clean_whitespace(merged)
+            sections.append((current_heading, merged))
     
     for paragraph in doc.paragraphs:
         text = paragraph.text.strip()
         if not text:
             continue
-        
         style_name = paragraph.style.name if paragraph.style else ""
-        # if heading
+        
         if style_name.startswith("Heading"):
-            # flush old
             flush_section()
             current_heading = text
             current_section = []
         elif "ListBullet" in style_name or "ListNumber" in style_name or "Bulleted" in style_name:
-            # treat each bullet as a separate mini-paragraph
             if current_section:
                 current_section.append(f"• {text}")
             else:
@@ -490,12 +499,10 @@ def parse_docx(file_path: str, logger) -> List[Dict[str, Any]]:
         else:
             current_section.append(text)
     
-    # flush last
     flush_section()
     
     if not sections and current_section:
-        # If no headings found, treat entire doc as single section
-        sections.append((None, "\n".join(current_section)))
+        sections.append((None, _clean_whitespace("\n".join(current_section))))
     
     records = []
     chunked_count = 0
@@ -503,7 +510,7 @@ def parse_docx(file_path: str, logger) -> List[Dict[str, Any]]:
     for i, (heading, content) in enumerate(sections):
         if not content.strip():
             continue
-        # chunk
+        
         parted = chunk_text(content, max_size=MAX_CHUNK_SIZE)
         for j, ch in enumerate(parted):
             records.append({
@@ -519,9 +526,6 @@ def parse_docx(file_path: str, logger) -> List[Dict[str, Any]]:
             })
             chunked_count += 1
     
-    # (opcjonalnie) obsługa tabel, etc.
-    # ...
-    
     logger.info(f"[parse_docx] Created {chunked_count} records from DOCX (chunked).")
     return records
 
@@ -532,19 +536,19 @@ def parse_pdf(file_path: str, logger) -> List[Dict[str, Any]]:
     
     try:
         laparams = LAParams(line_margin=0.5)
-        text = extract_text(file_path, laparams=laparams)
+        raw_text = extract_text(file_path, laparams=laparams)
     except Exception as e:
         logger.error(f"[parse_pdf] Error extracting text from PDF: {e}")
         raise
     
-    # heurystyka: sprawdź markery stron
-    page_markers = re.findall(r'(?:Page \d+ of \d+)', text)
+    # usuwamy nadmierny whitespace
+    raw_text = _clean_whitespace(raw_text)
+    
+    page_markers = re.findall(r'(?:Page \d+ of \d+)', raw_text)
     chunks = []
     
     if page_markers:
-        # split by those markers
-        splitted = re.split(r'(Page \d+ of \d+)', text)
-        # re-sklej, bo re.split zostawia marker w tablicy
+        splitted = re.split(r'(Page \d+ of \d+)', raw_text)
         buffer_page = ""
         page_texts = []
         for seg in splitted:
@@ -558,13 +562,10 @@ def parse_pdf(file_path: str, logger) -> List[Dict[str, Any]]:
             page_texts.append(buffer_page)
         
         for i, page_txt in enumerate(page_texts):
-            # chunk by sentences
             parted = chunk_text(page_txt, max_size=MAX_CHUNK_SIZE)
             chunks.extend(parted)
     else:
-        # fallback
-        # użyj improved chunking
-        parted = chunk_text(text, max_size=MAX_CHUNK_SIZE)
+        parted = chunk_text(raw_text, max_size=MAX_CHUNK_SIZE)
         chunks.extend(parted)
     
     records = []
