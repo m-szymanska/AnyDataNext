@@ -272,12 +272,32 @@
                     const data = await response.json();
                     console.log('Extracted keywords:', data.keywords);
                     
-                    // Store keywords in localStorage for the next page
+                    // Store keywords and dataset info in localStorage for the next page
                     localStorage.setItem('uploadedFilePath', uploadedFilePath);
                     localStorage.setItem('extractedKeywords', JSON.stringify(data.keywords || []));
                     
-                    // Navigate to the next step (model setup or keyword editing)
-                    window.location.href = '/prepare?file=' + encodeURIComponent(uploadedFilePath);
+                    // Store dataset ID if available
+                    if (data.dataset_id) {
+                        localStorage.setItem('lastExtractedDatasetId', data.dataset_id);
+                        
+                        // Call the prepare-dataset endpoint directly with the dataset_id
+                        const prepareResponse = await fetch('/prepare-dataset', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded'
+                            },
+                            body: `selected_datasets=${encodeURIComponent(data.dataset_id)}`
+                        });
+                        
+                        if (!prepareResponse.ok) {
+                            console.error('Error configuring dataset:', await prepareResponse.text());
+                        } else {
+                            console.log('Dataset configured successfully');
+                        }
+                    }
+                    
+                    // Navigate to the next step (prepare training data)
+                    window.location.href = '/prepare?auto_select=true&dataset_id=' + encodeURIComponent(data.dataset_id || '');
                     
                 } catch (error) {
                     console.error('Error extracting keywords:', error);

@@ -708,7 +708,7 @@
                                         <span class="tooltiptext">Przykłady o podobieństwie powyżej tego progu zostaną uznane za duplikaty (0.0-1.0)</span>
                                     </div>
                                 </label>
-                                <input type="range" id="deduplicationThreshold" min="0.5" max="1" step="0.01" value="0.85">
+                                <input type="range" id="deduplicationThreshold" min="0.5" max="1" step="0.01" value="0.85" oninput="document.getElementById('dedupThresholdValue').textContent = this.value">
                                 <div style="display: flex; justify-content: space-between;">
                                     <span>0.5</span>
                                     <span id="dedupThresholdValue">0.85</span>
@@ -732,16 +732,16 @@
                                 <label>Minimalna długość</label>
                                 <div style="display: flex; gap: 10px;">
                                     <div style="flex: 1;">
-                                        <small>Instrukcja: 50 znaków</small>
-                                        <input type="range" id="minInstructionLen" min="10" max="200" value="50">
+                                        <small>Instrukcja: <span id="minInstructionLenValue">50</span> znaków</small>
+                                        <input type="range" id="minInstructionLen" min="10" max="200" value="50" oninput="document.getElementById('minInstructionLenValue').textContent = this.value">
                                     </div>
                                     <div style="flex: 1;">
-                                        <small>Output: 100 znaków</small>
-                                        <input type="range" id="minOutputLen" min="50" max="500" value="100">
+                                        <small>Output: <span id="minOutputLenValue">100</span> znaków</small>
+                                        <input type="range" id="minOutputLen" min="50" max="500" value="100" oninput="document.getElementById('minOutputLenValue').textContent = this.value">
                                     </div>
                                     <div style="flex: 1;">
-                                        <small>Reasoning: 300 znaków</small>
-                                        <input type="range" id="minReasoningLen" min="100" max="1000" value="300">
+                                        <small>Reasoning: <span id="minReasoningLenValue">300</span> znaków</small>
+                                        <input type="range" id="minReasoningLen" min="100" max="1000" value="300" oninput="document.getElementById('minReasoningLenValue').textContent = this.value">
                                     </div>
                                 </div>
                             </div>
@@ -899,15 +899,27 @@
                         <h3>Podział danych treningowych</h3>
                         
                         <div class="split-control">
-                            <div class="split-value">80%</div>
-                            <input type="range" id="trainTestSplit" min="60" max="90" value="80" class="split-slider">
-                            <div class="split-value">20%</div>
+                            <div class="split-value"><span id="leftTrainSplitValue">80</span>%</div>
+                            <input type="range" id="trainTestSplit" min="60" max="90" value="80" class="split-slider" oninput="updateSplitValues()">
+                            <div class="split-value"><span id="leftTestSplitValue">20</span>%</div>
                         </div>
                         
                         <p style="text-align: center;">
                             <span class="split-value" id="trainSplitValue">80%</span> danych treningowych,
                             <span class="split-value" id="testSplitValue">20%</span> danych testowych
                         </p>
+                        
+                        <script>
+                            function updateSplitValues() {
+                                const trainValue = document.getElementById('trainTestSplit').value;
+                                const testValue = 100 - trainValue;
+                                
+                                document.getElementById('leftTrainSplitValue').textContent = trainValue;
+                                document.getElementById('leftTestSplitValue').textContent = testValue;
+                                document.getElementById('trainSplitValue').textContent = trainValue + '%';
+                                document.getElementById('testSplitValue').textContent = testValue + '%';
+                            }
+                        </script>
                         
                         <div class="checkbox-group" style="justify-content: center; margin-top: 15px;">
                             <label><input type="checkbox" id="useStratifiedSplit" checked> Stratyfikowany podział</label>
@@ -1052,8 +1064,462 @@
     </footer>
     
     <script>
-        // Podstawowa obsługa interfejsu
+        // Set up WebSocket connection for real-time updates
+        let ws;
+        let currentJobId = null;
+        
+        function setupWebSocket(jobId) {
+            // Generate a unique client ID
+            const clientId = `client_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+            currentJobId = jobId;
+            
+            // Close any existing WebSocket
+            if (ws) {
+                ws.close();
+            }
+            
+            // Create new WebSocket connection
+            ws = new WebSocket(`${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/${clientId}`);
+            
+            ws.onopen = function() {
+                console.log('WebSocket connected');
+                // Start checking progress
+                checkProgressRegularly();
+            };
+            
+            ws.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                if (data.job_id === currentJobId) {
+                    updateProgress(data);
+                }
+            };
+            
+            ws.onerror = function(error) {
+                console.error('WebSocket error:', error);
+            };
+            
+            ws.onclose = function() {
+                console.log('WebSocket disconnected');
+            };
+        }
+        
+        // Function to check progress regularly (fallback if WebSocket fails)
+        function checkProgressRegularly() {
+            if (!currentJobId) return;
+            
+            fetch(`/progress/${currentJobId}`)
+                .then(response => response.json())
+                .then(data => {
+                    updateProgress(data);
+                    
+                    // Continue checking if job is not completed
+                    if (data.status !== 'completed' && data.status !== 'error') {
+                        setTimeout(checkProgressRegularly, 2000);
+                    } else if (data.status === 'completed') {
+                        // For dataset_ IDs, show download options for this dataset
+                        // rather than trainprep_ ID
+                        let displayId = currentJobId;
+                        if (currentJobId.startsWith("trainprep_") && data.config && data.config.selected_datasets && data.config.selected_datasets.length > 0) {
+                            // Use the original dataset ID instead of trainprep
+                            displayId = data.config.selected_datasets[0];
+                            console.log(`Using original dataset ID ${displayId} instead of ${currentJobId}`);
+                        }
+                        showDownloadOptions(displayId);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking progress:', error);
+                    setTimeout(checkProgressRegularly, 5000);
+                });
+        }
+        
+        // Function to update progress UI
+        function updateProgress(data) {
+            const progressBar = document.querySelector('#exportProgress .progress-bar');
+            const progressText = document.querySelector('#exportProgress .progress-text');
+            
+            if (progressBar && progressText) {
+                progressBar.style.width = `${data.progress}%`;
+                progressText.textContent = `${data.progress}% - ${data.message || 'Processing...'}`;
+                
+                if (data.status === 'completed') {
+                    document.getElementById('exportResult').style.display = 'block';
+                    showDownloadOptions(currentJobId);
+                } else if (data.status === 'error') {
+                    document.getElementById('exportResult').style.display = 'block';
+                    document.getElementById('exportResult').innerHTML = `
+                        <div class="alert danger">
+                            Błąd: ${data.message || 'Wystąpił nieoczekiwany błąd podczas przetwarzania.'}
+                        </div>
+                    `;
+                }
+            }
+        }
+        
+        // Show download options
+        function showDownloadOptions(jobId) {
+            // Always show download options for the original dataset_ ID if available
+            if (!jobId.startsWith('dataset_') && localStorage.getItem('lastExtractedDatasetId')) {
+                jobId = localStorage.getItem('lastExtractedDatasetId');
+            }
+            
+            document.getElementById('exportResult').innerHTML = `
+                <div class="alert success">
+                    Dataset został pomyślnie wygenerowany!
+                </div>
+                <div style="margin-top: 15px; text-align: center;">
+                    <a href="/download-training/${jobId}?format=jsonl" class="button" download>Pobierz JSONL</a>
+                    <a href="/download-training/${jobId}?format=json" class="button" download>Pobierz JSON</a>
+                    <a href="/download-training/${jobId}?format=zip" class="button info" download>Pobierz jako ZIP</a>
+                    <a href="#" class="button" onclick="showDatasetPreview('${jobId}')">Podgląd przykładów</a>
+                    <a href="#" class="button warning" onclick="showDatasetAnalysis('${jobId}')">Analiza datasetu</a>
+                </div>
+            `;
+        }
+        
+        // Load available datasets
+        async function loadAvailableDatasets() {
+            try {
+                const response = await fetch('/available-datasets');
+                const datasets = await response.json();
+                
+                const availableDatasetsContainer = document.getElementById('availableDatasets');
+                availableDatasetsContainer.innerHTML = '';
+                
+                datasets.forEach(dataset => {
+                    const datasetElement = document.createElement('div');
+                    datasetElement.className = 'draggable-item';
+                    datasetElement.setAttribute('draggable', 'true');
+                    datasetElement.setAttribute('data-id', dataset.id);
+                    
+                    // Create badge for dataset type
+                    const typeBadge = dataset.type === 'reasoning' 
+                        ? '<span style="background: #4a6fa5; color: white; padding: 2px 6px; border-radius: 10px; font-size: 10px; margin-left: 5px;">z rozumowaniem</span>' 
+                        : '';
+                    
+                    // Create special badge for fresh extracted dataset
+                    const isNewDataset = dataset.id === localStorage.getItem('lastExtractedDatasetId');
+                    const newBadge = isNewDataset 
+                        ? '<span style="background: #e74c3c; color: white; padding: 2px 6px; border-radius: 10px; font-size: 10px; margin-left: 5px;">nowy</span>' 
+                        : '';
+                    
+                    datasetElement.innerHTML = `
+                        ${dataset.name} ${typeBadge} ${newBadge}
+                        <span style="color: #666; font-size: 12px;">(${dataset.example_count} przykładów)</span>
+                    `;
+                    
+                    datasetElement.addEventListener('dragstart', dragStart);
+                    availableDatasetsContainer.appendChild(datasetElement);
+                });
+                
+                return datasets;
+            } catch (error) {
+                console.error('Error loading datasets:', error);
+                return [];
+            }
+        }
+        
+        // Show dataset preview
+        async function showDatasetPreview(jobId) {
+            try {
+                const response = await fetch(`/dataset-preview/${jobId}?count=3`);
+                const data = await response.json();
+                
+                document.getElementById('previewModal').style.display = 'flex';
+                const previewContainer = document.getElementById('examplePreview');
+                previewContainer.innerHTML = '';
+                
+                if (data.examples && data.examples.length > 0) {
+                    data.examples.forEach((example, index) => {
+                        let hasReasoning = false;
+                        let reasoningContent = '';
+                        
+                        // Check if example has reasoning
+                        if (example.reasoning) {
+                            hasReasoning = true;
+                            reasoningContent = example.reasoning;
+                        } else if (example.completion && example.completion.includes('<thinking>')) {
+                            hasReasoning = true;
+                            const match = example.completion.match(/<thinking>(.*?)<\/thinking>/s);
+                            reasoningContent = match ? match[1] : example.completion;
+                        }
+                        
+                        const reasoningQuality = hasReasoning ? 'high' : 'medium';
+                        const reasoningColor = reasoningQuality === 'high' ? '#27ae60' : '#e67e22';
+                        
+                        previewContainer.innerHTML += `
+                            <div style="margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 20px;">
+                                <h3>Przykład ${index + 1}</h3>
+                                <p><strong>Prompt:</strong> ${example.prompt || ''}</p>
+                                <p><strong>Completion:</strong> ${example.completion || ''}</p>
+                                ${hasReasoning ? `
+                                    <p><strong>Reasoning:</strong> <span style="color: ${reasoningColor};">Rozumowanie ${reasoningQuality === 'high' ? 'wysokiej' : 'średniej'} jakości</span></p>
+                                    <div style="background-color: #f9f9f9; padding: 10px; border-left: 3px solid ${reasoningColor};">
+                                        ${reasoningContent}
+                                    </div>
+                                ` : ''}
+                            </div>
+                        `;
+                    });
+                } else {
+                    previewContainer.innerHTML = '<p>Brak przykładów do wyświetlenia.</p>';
+                }
+            } catch (error) {
+                console.error('Error fetching dataset preview:', error);
+                document.getElementById('previewModal').style.display = 'flex';
+                document.getElementById('examplePreview').innerHTML = '<p>Błąd podczas ładowania przykładów.</p>';
+            }
+        }
+        
+        // Show dataset analysis
+        async function showDatasetAnalysis(jobId) {
+            try {
+                const response = await fetch(`/dataset-analysis/${jobId}`);
+                const analysis = await response.json();
+                
+                document.getElementById('analysisModal').style.display = 'flex';
+                const analysisContainer = document.getElementById('datasetAnalysis');
+                
+                analysisContainer.innerHTML = `
+                    <div class="card">
+                        <h3>Statystyki datasetu</h3>
+                        <div style="display: flex; flex-wrap: wrap; gap: 20px;">
+                            <div class="stat-card" style="flex: 1; min-width: 200px;">
+                                <div class="stat-label">Łączna liczba przykładów</div>
+                                <div class="stat-value">${analysis.total_examples.toLocaleString()}</div>
+                            </div>
+                            <div class="stat-card" style="flex: 1; min-width: 200px;">
+                                <div class="stat-label">Po deduplikacji</div>
+                                <div class="stat-value">${analysis.unique_examples.toLocaleString()}</div>
+                            </div>
+                            <div class="stat-card" style="flex: 1; min-width: 200px;">
+                                <div class="stat-label">Z rozumowaniem</div>
+                                <div class="stat-value">${analysis.with_reasoning.toLocaleString()}</div>
+                                <div class="stat-label">${analysis.total_examples > 0 ? Math.round((analysis.with_reasoning / analysis.total_examples) * 100) : 0}%</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <h3>Jakość datasetu</h3>
+                        <div style="display: flex; align-items: center; justify-content: center; margin: 30px 0;">
+                            <div style="font-size: 64px; font-weight: bold; color: ${analysis.quality_score >= 8 ? '#27ae60' : analysis.quality_score >= 6 ? '#f39c12' : '#e74c3c'}">
+                                ${analysis.quality_score.toFixed(1)}/10
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <h3>Rekomendacje</h3>
+                        <ul>
+                            ${analysis.recommendations.map(rec => `<li>${rec}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Error fetching dataset analysis:', error);
+                document.getElementById('analysisModal').style.display = 'flex';
+                document.getElementById('datasetAnalysis').innerHTML = '<p>Błąd podczas ładowania analizy.</p>';
+            }
+        }
+        
+        // Upload JSONL file
+        async function uploadJsonlFile(file) {
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                const response = await fetch('/upload-jsonl', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    // Create a draggable item for the uploaded file
+                    const datasetElement = document.createElement('div');
+                    datasetElement.className = 'draggable-item';
+                    datasetElement.setAttribute('draggable', 'true');
+                    datasetElement.setAttribute('data-id', `uploaded_${result.file_path}`);
+                    
+                    datasetElement.innerHTML = `
+                        ${result.name} <span style="background: #e67e22; color: white; padding: 2px 6px; border-radius: 10px; font-size: 10px; margin-left: 5px;">uploaded</span>
+                        <span style="color: #666; font-size: 12px;">(${result.example_count} przykładów)</span>
+                    `;
+                    
+                    datasetElement.addEventListener('dragstart', dragStart);
+                    
+                    // Add to uploaded files list
+                    const uploadedFilesContainer = document.getElementById('uploadedFiles');
+                    uploadedFilesContainer.appendChild(datasetElement);
+                    
+                    return true;
+                } else {
+                    console.error('Error uploading file:', result.detail);
+                    return false;
+                }
+            } catch (error) {
+                console.error('Error uploading file:', error);
+                return false;
+            }
+        }
+        
+        // Prepare and submit dataset
+        async function prepareDataset() {
+            try {
+                // Display progress bar
+                document.getElementById('exportProgress').style.display = 'block';
+                document.getElementById('exportResult').style.display = 'none';
+                
+                // Get selected datasets
+                const selectedDatasets = Array.from(document.querySelectorAll('#selectedDatasets .draggable-item'))
+                    .map(item => item.getAttribute('data-id'));
+                
+                if (!selectedDatasets.length) {
+                    alert('Wybierz przynajmniej jeden dataset.');
+                    document.getElementById('exportProgress').style.display = 'none';
+                    return;
+                }
+                
+                // Get filter tags
+                const filterTags = Array.from(document.querySelectorAll('#filterTagsList .filter-tag'))
+                    .map(tag => tag.getAttribute('data-tag'))
+                    .join(',');
+                
+                // Get augmentation techniques
+                const augmentationTechniques = [];
+                if (document.getElementById('augUseParaphrasing').checked) augmentationTechniques.push('paraphrase');
+                if (document.getElementById('augUseReordering').checked) augmentationTechniques.push('reorder');
+                if (document.getElementById('augUseQA2Instruction').checked) augmentationTechniques.push('qa2instruction');
+                
+                // Get veterinary specialties
+                const vetSpecialties = Array.from(document.getElementById('poSpecialties').selectedOptions)
+                    .map(option => option.value);
+                
+                // Prepare form data
+                const formData = new FormData();
+                formData.append('selected_datasets', selectedDatasets);
+                formData.append('deduplication_threshold', document.getElementById('deduplicationThreshold').value);
+                formData.append('deduplication_method', document.getElementById('dedupMethod').value);
+                formData.append('min_instruction_len', document.getElementById('minInstructionLen').value);
+                formData.append('min_output_len', document.getElementById('minOutputLen').value);
+                formData.append('min_reasoning_len', document.getElementById('minReasoningLen').value);
+                formData.append('filter_missing_reasoning', document.getElementById('filterMissingReasoning').checked);
+                formData.append('filter_low_quality', document.getElementById('filterLowQuality').checked);
+                formData.append('filter_non_polish', document.getElementById('filterNonPolish').checked);
+                formData.append('filter_tags', filterTags);
+                formData.append('enable_augmentation', document.getElementById('enableAugmentation').checked);
+                formData.append('augmentation_factor', document.getElementById('augmentationFactor').value);
+                formData.append('augmentation_techniques', augmentationTechniques);
+                formData.append('reasoning_template', document.getElementById('reasoningTemplate').value);
+                formData.append('standardize_reasoning', document.getElementById('standardizeReasoning').checked);
+                formData.append('translate_reasoning', document.getElementById('translateReasoning').checked);
+                formData.append('correct_reasoning', document.getElementById('correctReasoning').checked);
+                formData.append('add_vet_context', document.getElementById('addVetContext').checked);
+                formData.append('vet_specialties', vetSpecialties);
+                formData.append('train_test_split', document.getElementById('trainTestSplit').value / 100);
+                formData.append('use_stratified_split', document.getElementById('useStratifiedSplit').checked);
+                formData.append('output_format', document.getElementById('outputFormat').value);
+                formData.append('mlx_tokenizer', document.getElementById('mlxTokenizer').value);
+                formData.append('mlx_template', document.getElementById('mlxTemplate').value);
+                
+                // Add custom template if selected
+                if (document.getElementById('mlxTemplate').value === 'custom') {
+                    formData.append('custom_template', document.getElementById('customTemplate').value);
+                }
+                
+                formData.append('enable_pretokenization', document.getElementById('enablePretokenization').checked);
+                formData.append('include_source_info', document.getElementById('includeSourceInfo').checked);
+                formData.append('include_processing_info', document.getElementById('includeProcessingInfo').checked);
+                formData.append('include_quality_scores', document.getElementById('includeQualityScores').checked);
+                formData.append('include_domain_tags', document.getElementById('includeDomainTags').checked);
+                
+                // Add custom metadata if provided
+                const customMetadata = document.getElementById('customMetadata').value;
+                if (customMetadata.trim()) {
+                    try {
+                        // Verify it's valid JSON
+                        JSON.parse(customMetadata);
+                        formData.append('custom_metadata', customMetadata);
+                    } catch (e) {
+                        alert('Błąd w formacie JSON metadanych. Sprawdź składnię.');
+                        document.getElementById('exportProgress').style.display = 'none';
+                        return;
+                    }
+                }
+                
+                // Submit form
+                const response = await fetch('/prepare-dataset', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.job_id) {
+                    // Set up WebSocket for real-time progress updates
+                    setupWebSocket(result.job_id);
+                    return true;
+                } else {
+                    console.error('Error preparing dataset:', result.detail);
+                    document.getElementById('exportResult').style.display = 'block';
+                    document.getElementById('exportResult').innerHTML = `
+                        <div class="alert danger">
+                            Wystąpił błąd: ${result.detail || 'Nieznany błąd podczas przygotowywania danych.'}
+                        </div>
+                    `;
+                    return false;
+                }
+            } catch (error) {
+                console.error('Error preparing dataset:', error);
+                document.getElementById('exportResult').style.display = 'block';
+                document.getElementById('exportResult').innerHTML = `
+                    <div class="alert danger">
+                        Wystąpił błąd: ${error.message || 'Nieznany błąd podczas przygotowywania danych.'}
+                    </div>
+                `;
+                return false;
+            }
+        }
+        
+        // Check URL parameters and handle auto-select
+        function getUrlParameter(name) {
+            name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+            const regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+            const results = regex.exec(location.search);
+            return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+        }
+        
+        // Main initialization
         document.addEventListener('DOMContentLoaded', function() {
+            // Load available datasets
+            loadAvailableDatasets().then(() => {
+                // Check if we should auto-select a dataset
+                const autoSelect = getUrlParameter('auto_select');
+                const datasetId = getUrlParameter('dataset_id');
+                
+                if (autoSelect === 'true' && datasetId) {
+                    // Small delay to ensure dataset list is populated
+                    setTimeout(() => {
+                        const datasetItem = document.querySelector(`[data-id="${datasetId}"]`);
+                        if (datasetItem) {
+                            // Move to selected datasets
+                            const clone = datasetItem.cloneNode(true);
+                            clone.addEventListener('dragstart', dragStart);
+                            document.getElementById('selectedDatasets').appendChild(clone);
+                            datasetItem.remove();
+                            updateStatistics();
+                            
+                            // Show success message
+                            alert('Plik został pomyślnie przetworzony. Dataset jest gotowy do dalszej edycji.');
+                        } else {
+                            console.warn(`Dataset ${datasetId} not found in available datasets`);
+                        }
+                    }, 500);
+                }
+            });
+            
             // Obsługa zakładek
             const tabs = document.querySelectorAll('.tab');
             tabs.forEach(tab => {
@@ -1075,12 +1541,7 @@
             });
             
             // Obsługa drag and drop dla wyboru datasetów
-            const draggableItems = document.querySelectorAll('.draggable-item');
             const dropContainers = document.querySelectorAll('.draggable-container');
-            
-            draggableItems.forEach(item => {
-                item.addEventListener('dragstart', dragStart);
-            });
             
             dropContainers.forEach(container => {
                 container.addEventListener('dragover', dragOver);
@@ -1089,253 +1550,63 @@
                 container.addEventListener('drop', drop);
             });
             
-            function dragStart(e) {
-                e.dataTransfer.setData('text/plain', e.target.getAttribute('data-id'));
-                setTimeout(() => {
-                    e.target.classList.add('dragging');
-                }, 0);
-            }
-            
-            function dragOver(e) {
-                e.preventDefault();
-            }
-            
-            function dragEnter(e) {
-                e.preventDefault();
-                this.classList.add('drag-over');
-            }
-            
-            function dragLeave(e) {
-                this.classList.remove('drag-over');
-            }
-            
-            function drop(e) {
-                e.preventDefault();
-                this.classList.remove('drag-over');
-                
-                const datasetId = e.dataTransfer.getData('text/plain');
-                const item = document.querySelector(`[data-id="${datasetId}"]`);
-                
-                if (item) {
-                    // Jeśli element jest upuszczany na inny kontener niż jego rodzic
-                    if (item.parentElement !== this) {
-                        // Sklonuj element i dodaj do nowego kontenera
-                        const clone = item.cloneNode(true);
-                        clone.addEventListener('dragstart', dragStart);
-                        this.appendChild(clone);
-                        
-                        // Usuń oryginał z poprzedniego kontenera
-                        item.remove();
-                        
-                        // Aktualizuj statystyki
-                        updateStatistics();
+            // File upload handling
+            const fileInput = document.getElementById('localFiles');
+            fileInput.addEventListener('change', function(e) {
+                Array.from(this.files).forEach(file => {
+                    if (file.name.endsWith('.jsonl') || file.name.endsWith('.json')) {
+                        uploadJsonlFile(file);
+                    } else {
+                        alert(`Nieobsługiwany format pliku: ${file.name}. Dozwolone są tylko pliki JSONL i JSON.`);
                     }
+                });
+            });
+            
+            // Preview and analyze buttons
+            document.getElementById('previewDataset').addEventListener('click', function() {
+                // Get the first selected dataset
+                const selectedDatasets = document.querySelectorAll('#selectedDatasets .draggable-item');
+                if (selectedDatasets.length > 0) {
+                    const datasetId = selectedDatasets[0].getAttribute('data-id');
+                    if (datasetId.startsWith('uploaded_')) {
+                        alert('Podgląd jest dostępny tylko dla istniejących datasetów (nie dla dopiero co wgranych plików).');
+                    } else {
+                        showDatasetPreview(datasetId);
+                    }
+                } else {
+                    alert('Wybierz przynajmniej jeden dataset do podglądu.');
                 }
-            }
+            });
+            
+            document.getElementById('analyzeDataset').addEventListener('click', function() {
+                // Get the first selected dataset
+                const selectedDatasets = document.querySelectorAll('#selectedDatasets .draggable-item');
+                if (selectedDatasets.length > 0) {
+                    const datasetId = selectedDatasets[0].getAttribute('data-id');
+                    if (datasetId.startsWith('uploaded_')) {
+                        alert('Analiza jest dostępna tylko dla istniejących datasetów (nie dla dopiero co wgranych plików).');
+                    } else {
+                        showDatasetAnalysis(datasetId);
+                    }
+                } else {
+                    alert('Wybierz przynajmniej jeden dataset do analizy.');
+                }
+            });
+            
+            // Generate dataset button
+            document.getElementById('exportDataset').addEventListener('click', prepareDataset);
+            
+            // Clear selection button
+            document.getElementById('clearSelection').addEventListener('click', function() {
+                document.getElementById('selectedDatasets').innerHTML = '';
+                updateStatistics();
+            });
             
             // Obsługa modali
             document.querySelectorAll('.modal .close').forEach(close => {
                 close.addEventListener('click', function() {
                     this.closest('.modal').style.display = 'none';
                 });
-            });
-            
-            document.getElementById('previewDataset').addEventListener('click', function() {
-                document.getElementById('previewModal').style.display = 'flex';
-                
-                // Tutaj można dodać kod generujący podgląd
-                document.getElementById('examplePreview').innerHTML = `
-                    <div style="margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 20px;">
-                        <h3>Przykład 1</h3>
-                        <p><strong>Instruction:</strong> Dokonaj diagnozy różnicowej u 5-letniego kota z objawami wielomoczu, wzmożonego pragnienia i utraty wagi.</p>
-                        <p><strong>Input:</strong> Kot, 5 lat, niekastrowany, waga 3.8kg (spadek z 4.5kg w ciągu miesiąca). Objawy: poliuria, polidypsja, utrata masy ciała mimo dobrego apetytu. Badanie kliniczne: odwodnienie 5%, poza tym bez odchyleń.</p>
-                        <p><strong>Output:</strong> Najbardziej prawdopodobne rozpoznania to: cukrzyca, przewlekła choroba nerek lub nadczynność tarczycy. Zalecam wykonanie badań krwi (morfologia, profil biochemiczny z glukozą, T4) oraz badanie ogólne moczu z USG moczu.</p>
-                        <p><strong>Reasoning:</strong> <span style="color: #27ae60;">Rozumowanie wysokiej jakości</span></p>
-                        <div style="background-color: #f9f9f9; padding: 10px; border-left: 3px solid #27ae60;">
-                            <p><strong>1. Analiza problemu:</strong> Mamy 5-letniego niekastrowanego kota z objawami PU/PD (poliuria/polidypsja) oraz utratą masy ciała mimo zachowanego apetytu. Badanie kliniczne wykazało tylko odwodnienie.</p>
-                            <p><strong>2. Diagnostyka różnicowa:</strong> Klasyczna triada objawów PU/PD + utrata masy ciała przy dobrym apetycie sugeruje trzy główne schorzenia u kotów:</p>
-                            <ul>
-                                <li>Cukrzyca - bardzo prawdopodobna, szczególnie u starszych, otyłych kotów</li>
-                                <li>Przewlekła choroba nerek - częsta u kotów, ale zwykle u starszych (>7 lat)</li>
-                                <li>Nadczynność tarczycy - typowa dla starszych kotów (>8 lat), więc mniej prawdopodobna przy 5 latach</li>
-                            </ul>
-                            <p>Rzadziej: infekcja układu moczowego, kamica nerkowa, choroby wątroby, nadczynność przytarczyc.</p>
-                            <p><strong>3. Plan diagnostyczny:</strong> Należy wykonać:</p>
-                            <ul>
-                                <li>Morfologię krwi - ocena stanu ogólnego</li>
-                                <li>Profil biochemiczny z glukozą - diagnostyka cukrzycy i ocena funkcji nerek (kreatynina, mocznik)</li>
-                                <li>T4 - diagnostyka nadczynności tarczycy</li>
-                                <li>Badanie ogólne moczu z USG - ocena funkcji nerek i wykluczenie infekcji</li>
-                            </ul>
-                            <p><strong>4. Interpretacja i rozpoznanie:</strong> Bez wyników badań nie można postawić ostatecznej diagnozy, ale najbardziej prawdopodobne są: cukrzyca, PChN lub nadczynność tarczycy. Wiek pacjenta (5 lat) sprawia, że cukrzyca i PChN są nieco bardziej prawdopodobne niż nadczynność tarczycy.</p>
-                        </div>
-                    </div>
-                    
-                    <div style="margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 20px;">
-                        <h3>Przykład 2</h3>
-                        <p><strong>Instruction:</strong> Zaproponuj protokół anestezjologiczny dla 3-letniego psa rasy border collie poddawanego zabiegowi usunięcia ciała obcego z jelita cienkiego.</p>
-                        <p><strong>Input:</strong> Pies, border collie, 3 lata, 18kg, ASA II. Planowany zabieg: laparotomia i enterotomia w celu usunięcia ciała obcego z jelita cienkiego.</p>
-                        <p><strong>Output:</strong> Protokół anestezjologiczny: premedykacja (acepromazyna 0.02mg/kg + metadon 0.2mg/kg IM), indukcja (propofol 4mg/kg IV), intubacja i podtrzymanie (izofluran 1.5-2.5% w tlenie). Analgezja śródoperacyjna: fentanyl (bolus 2-5μg/kg IV w razie potrzeby). Płynoterapia: krystaloidy (Plasmalyte 5-10ml/kg/h). Monitorowanie: EKG, pulsoksymetria, kapnografia, ciśnienie tętnicze, temperatura. Analgezja pooperacyjna: metadon (0.1-0.2mg/kg IM/IV co 4h) lub buprenorfina (0.01-0.02mg/kg IM/IV co 6-8h) oraz meloksykam (0.2mg/kg SC pierwsza dawka, następnie 0.1mg/kg PO).</p>
-                        <p><strong>Reasoning:</strong> <span style="color: #e67e22;">Rozumowanie średniej jakości</span></p>
-                        <div style="background-color: #f9f9f9; padding: 10px; border-left: 3px solid #e67e22;">
-                            <p>Plan anestezji dla psa poddawanego zabiegowi usunięcia ciała obcego z jelita cienkiego.</p>
-                            <p>Pacjent: border collie, 3 lata, 18kg, ASA II (łagodna choroba układowa bez ograniczeń czynnościowych)</p>
-                            <p>1. Premedykacja:</p>
-                            <ul>
-                                <li>Acepromazyna 0.02mg/kg IM - dla sedacji i uspokojenia</li>
-                                <li>Metadon 0.2mg/kg IM - silny opioid zapewniający analgezję</li>
-                            </ul>
-                            <p>2. Indukcja:</p>
-                            <ul>
-                                <li>Propofol 4mg/kg IV (podawać do efektu)</li>
-                                <li>Intubacja dotchawicza</li>
-                            </ul>
-                            <p>3. Podtrzymanie:</p>
-                            <ul>
-                                <li>Izofluran 1.5-2.5% w tlenie</li>
-                            </ul>
-                            <p>4. Płynoterapia:</p>
-                            <ul>
-                                <li>Krystaloidy (Plasmalyte) 5-10ml/kg/h</li>
-                            </ul>
-                            <p>5. Analgezja śródoperacyjna:</p>
-                            <ul>
-                                <li>Fentanyl - bolus 2-5μg/kg IV w razie potrzeby (oznaki bólu)</li>
-                            </ul>
-                            <p>6. Monitorowanie:</p>
-                            <ul>
-                                <li>EKG, pulsoksymetria, kapnografia, ciśnienie tętnicze, temperatura</li>
-                            </ul>
-                            <p>7. Analgezja pooperacyjna:</p>
-                            <ul>
-                                <li>Metadon 0.1-0.2mg/kg IM/IV co 4h lub Buprenorfina 0.01-0.02mg/kg IM/IV co 6-8h</li>
-                                <li>Meloksykam 0.2mg/kg SC pierwsza dawka, następnie 0.1mg/kg PO</li>
-                            </ul>
-                        </div>
-                    </div>
-                `;
-            });
-            
-            document.getElementById('analyzeDataset').addEventListener('click', function() {
-                document.getElementById('analysisModal').style.display = 'flex';
-                
-                // Tutaj można dodać kod generujący analizę
-                document.getElementById('datasetAnalysis').innerHTML = `
-                    <div class="card">
-                        <h3>Statystyki datasetu</h3>
-                        <div style="display: flex; flex-wrap: wrap; gap: 20px;">
-                            <div class="stat-card" style="flex: 1; min-width: 200px;">
-                                <div class="stat-label">Łączna liczba przykładów</div>
-                                <div class="stat-value">4,820</div>
-                            </div>
-                            <div class="stat-card" style="flex: 1; min-width: 200px;">
-                                <div class="stat-label">Po deduplikacji</div>
-                                <div class="stat-value">4,310</div>
-                            </div>
-                            <div class="stat-card" style="flex: 1; min-width: 200px;">
-                                <div class="stat-label">Z rozumowaniem</div>
-                                <div class="stat-value">3,750</div>
-                                <div class="stat-label">87%</div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="card">
-                        <h3>Rozkład typów przykładów</h3>
-                        <div style="height: 250px; background-color: #f5f5f5; margin: 20px 0; border-radius: 8px; padding: 10px; text-align: center;">
-                            [Wykres rozkładu typów danych]
-                        </div>
-                    </div>
-                    
-                    <div class="card">
-                        <h3>Rozkład specjalizacji weterynaryjnych</h3>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Specjalizacja</th>
-                                    <th>Liczba przykładów</th>
-                                    <th>Procent</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td>Choroby wewnętrzne</td>
-                                    <td>1,450</td>
-                                    <td>33.6%</td>
-                                </tr>
-                                <tr>
-                                    <td>Chirurgia</td>
-                                    <td>980</td>
-                                    <td>22.7%</td>
-                                </tr>
-                                <tr>
-                                    <td>Dermatologia</td>
-                                    <td>620</td>
-                                    <td>14.4%</td>
-                                </tr>
-                                <tr>
-                                    <td>Kardiologia</td>
-                                    <td>480</td>
-                                    <td>11.1%</td>
-                                </tr>
-                                <tr>
-                                    <td>Inne specjalizacje</td>
-                                    <td>780</td>
-                                    <td>18.2%</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    
-                    <div class="card">
-                        <h3>Jakość rozumowania</h3>
-                        <div style="height: 200px; background-color: #f5f5f5; margin: 20px 0; border-radius: 8px; padding: 10px; text-align: center;">
-                            [Wykres jakości rozumowania]
-                        </div>
-                        <p>Średni score jakości: <strong>7.8/10</strong></p>
-                    </div>
-                    
-                    <div class="card">
-                        <h3>Rekomendacje</h3>
-                        <ul>
-                            <li>Zwiększyć liczbę przykładów z neurologii i okulistyki weterynaryjnej</li>
-                            <li>Dodać więcej przypadków zwierząt egzotycznych (obecnie tylko 5%)</li>
-                            <li>Ustandaryzować format rozumowania w 215 przykładach (5% datasetu)</li>
-                            <li>Poprawić jakość polskiego języka w tłumaczonych przykładach</li>
-                        </ul>
-                    </div>
-                `;
-            });
-            
-            // Obsługa przycisku do generowania finalnego datasetu
-            document.getElementById('exportDataset').addEventListener('click', function() {
-                // Pokaż pasek postępu
-                document.getElementById('exportProgress').style.display = 'block';
-                
-                // Symulacja procesu generowania datasetu
-                let progress = 0;
-                const progressBar = document.querySelector('#exportProgress .progress-bar');
-                const progressText = document.querySelector('#exportProgress .progress-text');
-                
-                const interval = setInterval(() => {
-                    progress += 5;
-                    progressBar.style.width = `${progress}%`;
-                    progressText.textContent = `${progress}%`;
-                    
-                    if (progress >= 100) {
-                        clearInterval(interval);
-                        document.getElementById('exportResult').style.display = 'block';
-                        document.getElementById('exportResult').innerHTML = `
-                            <div class="alert success">
-                                Dataset został pomyślnie wygenerowany!
-                            </div>
-                            <div style="margin-top: 15px; text-align: center;">
-                                <a href="#" class="button">Pobierz dataset</a>
-                                <a href="#" class="button info">Zobacz szczegóły</a>
-                            </div>
-                        `;
-                    }
-                }, 200);
             });
             
             // Aktualizacja jakości datasetu
@@ -1443,6 +1714,51 @@
                 customTemplateEditor.style.display = this.value === 'custom' ? 'block' : 'none';
             });
         });
+        
+        // Drag and drop functions
+        function dragStart(e) {
+            e.dataTransfer.setData('text/plain', e.target.getAttribute('data-id'));
+            setTimeout(() => {
+                e.target.classList.add('dragging');
+            }, 0);
+        }
+        
+        function dragOver(e) {
+            e.preventDefault();
+        }
+        
+        function dragEnter(e) {
+            e.preventDefault();
+            this.classList.add('drag-over');
+        }
+        
+        function dragLeave(e) {
+            this.classList.remove('drag-over');
+        }
+        
+        function drop(e) {
+            e.preventDefault();
+            this.classList.remove('drag-over');
+            
+            const datasetId = e.dataTransfer.getData('text/plain');
+            const item = document.querySelector(`[data-id="${datasetId}"]`);
+            
+            if (item) {
+                // Jeśli element jest upuszczany na inny kontener niż jego rodzic
+                if (item.parentElement !== this) {
+                    // Sklonuj element i dodaj do nowego kontenera
+                    const clone = item.cloneNode(true);
+                    clone.addEventListener('dragstart', dragStart);
+                    this.appendChild(clone);
+                    
+                    // Usuń oryginał z poprzedniego kontenera
+                    item.remove();
+                    
+                    // Aktualizuj statystyki
+                    updateStatistics();
+                }
+            }
+        }
     </script>
 </body>
 </html>

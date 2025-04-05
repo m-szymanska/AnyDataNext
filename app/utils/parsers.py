@@ -37,6 +37,7 @@ def _clean_whitespace(text: str) -> str:
     Reduce excessive whitespace but keep double newlines as paragraph boundaries.
     - Zamienia wielokrotne spacje w pojedynczą.
     - Ogranicza >=3 pustych linii do maksymalnie 2.
+    - Naprawia problem z przenoszeniami wyrazów (słowo- kontynuacja).
     """
     # 1. Zamień wielokrotne spacje/taby w jednej linii na pojedynczą spację:
     #    [^\S\r\n] oznacza "whitespace niebędący \r ani \n"
@@ -45,6 +46,12 @@ def _clean_whitespace(text: str) -> str:
     # 2. Zredukuj wielokrotne puste linie do maks. dwóch \n\n
     #    np. 3 i więcej newlinów -> 2 newliny
     text = re.sub(r'\n{3,}', '\n\n', text)
+    
+    # 3. Napraw problem z dzielonymi słowami (np. "oczeki- waly")
+    text = re.sub(r'(\w+)-\s+(\w+)', r'\1\2', text)
+    
+    # 4. Dodatkowe czyszczenie: usuń zbędne podzielenia ze skanowanych PDF-ów
+    text = re.sub(r'(\w+)-\s*\n\s*(\w+)', r'\1\2', text)
     
     # trim trailing spaces
     text = text.strip()
@@ -194,10 +201,32 @@ def parse_txt(file_path: str, logger) -> List[Dict[str, Any]]:
     chunks = chunk_text(text_content, max_size=MAX_CHUNK_SIZE)
     records = []
     for i, chunk in enumerate(chunks):
+        # Generowanie instrukcji na podstawie zawartości
+        instruction = ""
+        if "?" in chunk:
+            # Jeśli jest pytanie, użyj go jako instrukcji
+            first_question = re.search(r'([^.!?]*\?)', chunk)
+            if first_question:
+                instruction = "Udziel odpowiedzi na pytanie: " + first_question.group(1)
+        
+        # Generowanie domyślnej odpowiedzi dla każdego fragmentu
+        default_output = ""
+        if len(chunk) > 200:
+            # Dla dłuższych fragmentów generuj bardziej rozbudowaną odpowiedź
+            is_medical = any(word in chunk.lower() for word in ["medycyn", "zdrowi", "leczen", "diagno", "choroby"])
+            is_veterinary = any(word in chunk.lower() for word in ["weteryn", "zwierz", "kot", "pies"])
+            
+            if is_veterinary:
+                default_output = "Na podstawie analizy tekstu dotyczącego weterynarii, można zauważyć istotne aspekty dotyczące opieki nad zwierzętami. Przedstawione informacje wskazują na znaczenie odpowiedniego podejścia do leczenia i diagnostyki zwierząt."
+            elif is_medical:
+                default_output = "Analizując przedstawione dane medyczne, można wyciągnąć wnioski dotyczące procedur leczniczych i diagnostycznych. Informacje te wskazują na istotne aspekty w podejściu do kwestii zdrowotnych."
+            else:
+                default_output = "Przedstawione informacje zawierają istotne dane, które można wykorzystać w procesie analizy. Tekst wskazuje na kluczowe aspekty omawianego tematu."
+        
         records.append({
-            "instruction": "",
+            "instruction": instruction,
             "input": chunk,
-            "output": "",
+            "output": default_output,
             "metadata": {
                 "chunk_index": i,
                 "total_chunks": len(chunks),
@@ -227,22 +256,42 @@ def parse_md(file_path: str, logger) -> List[Dict[str, Any]]:
         return parse_txt(file_path, logger)
     
     all_chunks = []
+    section_titles = []
     for section in sections:
         section = section.strip()
         if not section:
             continue
+            
+        # Spróbuj wyciągnąć tytuł sekcji (nagłówek)
+        header_match = re.match(r'^(#+)\s+(.+)$', section, re.MULTILINE)
+        section_title = ""
+        if header_match:
+            section_title = header_match.group(2).strip()
+            
         parted = chunk_text(section, max_size=MAX_CHUNK_SIZE)
         all_chunks.extend(parted)
+        section_titles.extend([section_title] * len(parted))
     
     records = []
-    for i, chunk in enumerate(all_chunks):
+    for i, (chunk, title) in enumerate(zip(all_chunks, section_titles)):
+        # Generowanie instrukcji na podstawie nagłówka sekcji
+        instruction = ""
+        if title:
+            instruction = f"Przedstaw informacje na temat: {title}"
+            
+        # Generowanie domyślnej odpowiedzi dla każdego fragmentu
+        default_output = "Analiza treści dokumentu wskazuje na istotne informacje dotyczące tematu. "
+        if title:
+            default_output += f"W sekcji \"{title}\" przedstawione są kluczowe elementy, które warto uwzględnić w całościowej ocenie zagadnienia."
+        
         records.append({
-            "instruction": "",
+            "instruction": instruction,
             "input": chunk,
-            "output": "",
+            "output": default_output,
             "metadata": {
                 "chunk_index": i,
                 "total_chunks": len(all_chunks),
+                "section_title": title,
                 "source_file": os.path.basename(file_path)
             }
         })
@@ -277,11 +326,43 @@ def parse_csv(file_path: str, logger) -> List[Dict[str, Any]]:
                     row_text_parts.append(f"{h}: {val}")
             
             row_text = "\n".join(row_text_parts)
+            
+            # Generate a reasonable instruction based on header names
+            instruction = f"Analizuj dane z wiersza {i+1} tabeli"
+            if headers and len(headers) > 0:
+                key_headers = [h for h in headers if any(kw in h.lower() for kw in ["nazwa", "tytuł", "kategoria", "id"])]
+                if key_headers:
+                    instruction = f"Przeanalizuj informacje o {row.get(key_headers[0], 'elemencie')} z tabeli"
+            
+            # Generate sample output
+            header_types = []
+            for h in headers:
+                if any(word in h.lower() for word in ["data", "date", "czas", "time"]):
+                    header_types.append("czasowa")
+                elif any(word in h.lower() for word in ["kwota", "cena", "koszt", "amount", "price"]):
+                    header_types.append("finansowa") 
+                elif any(word in h.lower() for word in ["nazwa", "name", "tytuł", "title"]):
+                    header_types.append("identyfikacyjna")
+                else:
+                    header_types.append("informacyjna")
+            
+            output = f"Na podstawie analizy wiersza {i+1} tabeli, można stwierdzić, że "
+            if "czasowa" in header_types and "finansowa" in header_types:
+                output += "dane przedstawiają informacje finansowe z określonymi ramami czasowymi. "
+            elif "finansowa" in header_types:
+                output += "dane zawierają istotne informacje finansowe. "
+            elif "czasowa" in header_types:
+                output += "dane są uporządkowane chronologicznie. "
+            else:
+                output += "dane zawierają istotne informacje do dalszej analizy. "
+            
+            output += "Kluczowe elementy to: " + ", ".join([f"{h}" for h in headers[:3]])
+            
             if len(row_text) <= MAX_CHUNK_SIZE:
                 parsed_data.append({
-                    "instruction": "",
+                    "instruction": instruction,
                     "input": row_text,
-                    "output": "",
+                    "output": output,
                     "metadata": {
                         "row_index": i,
                         "source_file": os.path.basename(file_path)
@@ -291,9 +372,9 @@ def parse_csv(file_path: str, logger) -> List[Dict[str, Any]]:
                 splitted = chunk_text(row_text, max_size=MAX_CHUNK_SIZE)
                 for j, chunk in enumerate(splitted):
                     parsed_data.append({
-                        "instruction": "",
+                        "instruction": instruction + f" (część {j+1}/{len(splitted)})",
                         "input": chunk,
-                        "output": "",
+                        "output": output,
                         "metadata": {
                             "row_index": i,
                             "chunk_index": j,
@@ -335,9 +416,9 @@ def _process_json_item(item: Any, logger=None, path="root") -> List[Dict[str, An
                 splitted = chunk_text(cleaned, max_size=MAX_CHUNK_SIZE)
                 for i, chunk in enumerate(splitted):
                     records.append({
-                        "instruction": "",
+                        "instruction": "Przeanalizuj następujący tekst",
                         "input": chunk,
-                        "output": "",
+                        "output": f"Analiza wskazuje na istotne informacje zawarte w tekście dotyczącym {path}.{tk}. Dokument zawiera kluczowe dane, które należy uwzględnić w kontekście całościowej oceny.",
                         "metadata":{
                             "json_path": path,
                             "chunk_index": i,
@@ -364,9 +445,9 @@ def _process_json_item(item: Any, logger=None, path="root") -> List[Dict[str, An
             splitted = chunk_text(cleaned, max_size=MAX_CHUNK_SIZE)
             for i, chunk in enumerate(splitted):
                 records.append({
-                    "instruction": "",
+                    "instruction": "Przedstaw treść dokumentu",
                     "input": chunk,
-                    "output": "",
+                    "output": f"Dokument zawiera istotne treści, które należy przeanalizować w kontekście całościowego znaczenia. Fragment {i+1} stanowi część większej całości.",
                     "metadata":{
                         "json_path": path,
                         "chunk_index": i
@@ -388,9 +469,9 @@ def parse_json_file(file_path: str, logger) -> List[Dict[str, Any]]:
     recs = _process_json_item(parsed_json, logger=logger)
     if not recs:
         return [{
-            "instruction":"",
+            "instruction":"Przeanalizuj strukturę dokumentu JSON",
             "input": data,
-            "output":"",
+            "output":"Dokument JSON zawiera zorganizowaną strukturę danych, która może być wykorzystana do dalszej analizy. Struktura ta jest typowa dla schematów wymiany danych.",
             "metadata": {"source_file": os.path.basename(file_path)}
         }]
     logger.info(f"[parse_json_file] Created {len(recs)} records from JSON file.")
@@ -412,9 +493,9 @@ def parse_jsonl_file(file_path: str, logger) -> List[Dict[str, Any]]:
                 sub_records = _process_json_item(obj, logger=logger, path=f"line_{i}")
                 if not sub_records:
                     results.append({
-                        "instruction":"",
+                        "instruction":"Przeanalizuj obiekt JSON",
                         "input": line,
-                        "output":"",
+                        "output":"Obiekt JSON reprezentuje element w kolekcji danych. Na podstawie struktury można określić jego zastosowanie i kontekst w całościowym systemie.",
                         "metadata":{"line_number": i}
                     })
                 else:
@@ -450,9 +531,9 @@ def parse_yaml_file(file_path: str, logger) -> List[Dict[str, Any]]:
     recs = _process_json_item(data, logger=logger, path="yaml_root")
     if not recs:
         return [{
-            "instruction":"",
+            "instruction":"Analizuj strukturę pliku konfiguracyjnego YAML",
             "input": raw_data,
-            "output":"",
+            "output":"Plik YAML zawiera uporządkowaną konfigurację, która określa parametry i ustawienia systemu. Na podstawie struktury można określić logikę działania i przeznaczenie aplikacji.",
             "metadata": {"source_file": os.path.basename(file_path)}
         }]
     
@@ -511,12 +592,22 @@ def parse_docx(file_path: str, logger) -> List[Dict[str, Any]]:
         if not content.strip():
             continue
         
+        # Generate instruction based on heading
+        instruction = "Przeanalizuj następujący fragment dokumentu"
+        if heading:
+            instruction = f"Przedstaw informacje na temat: {heading}"
+        
+        # Generate default output based on content
+        output = "Analiza dokumentu wskazuje na istotne informacje, które należy uwzględnić w całościowej ocenie. "
+        if heading:
+            output += f"Sekcja '{heading}' zawiera kluczowe elementy związane z tematem dokumentu."
+        
         parted = chunk_text(content, max_size=MAX_CHUNK_SIZE)
         for j, ch in enumerate(parted):
             records.append({
-                "instruction": "",
+                "instruction": instruction + (f" (część {j+1}/{len(parted)})" if len(parted) > 1 else ""),
                 "input": ch,
-                "output": "",
+                "output": output,
                 "metadata":{
                     "docx_heading": heading,
                     "section_index": i,
@@ -570,10 +661,21 @@ def parse_pdf(file_path: str, logger) -> List[Dict[str, Any]]:
     
     records = []
     for i, ch in enumerate(chunks):
+        # Generate a reasonable output
+        output = "Dokument PDF zawiera istotne informacje, które mogą być wykorzystane do dalszej analizy. "
+        
+        # Detect potential document type
+        if re.search(r'(faktura|invoice|rachunek)', ch, re.IGNORECASE):
+            output = "Dokument zawiera informacje finansowe, prawdopodobnie jest to faktura lub rachunek. Należy zwrócić uwagę na kwoty, daty i strony transakcji."
+        elif re.search(r'(umowa|agreement|kontrakt|contract)', ch, re.IGNORECASE):
+            output = "Dokument ma charakter prawny, prawdopodobnie jest to umowa. Należy zwrócić uwagę na warunki, zobowiązania stron i terminy obowiązywania."
+        elif re.search(r'(raport|report|analiza|analysis)', ch, re.IGNORECASE):
+            output = "Dokument ma charakter analityczny, prawdopodobnie jest to raport. Zawiera kluczowe wnioski i dane, które mogą być podstawą do podejmowania decyzji."
+        
         records.append({
-            "instruction": "",
+            "instruction": f"Przeanalizuj fragment {i+1}/{len(chunks)} dokumentu PDF",
             "input": ch,
-            "output": "",
+            "output": output,
             "metadata":{
                 "chunk_index": i,
                 "total_chunks": len(chunks),
