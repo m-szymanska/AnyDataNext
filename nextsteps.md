@@ -58,7 +58,7 @@
 Format pośredni JSON został zaimplementowany i jest używany jako standardowy format dla wszystkich etapów przetwarzania. Format ten został zaprojektowany tak, aby mógł być łatwo rozszerzany o nowe funkcjonalności w przyszłości.
 
 ```json
-[
+{
   {
     "instruction": "Pytanie/instrukcja",
     "input": "Kontekst z dokumentu",
@@ -67,15 +67,14 @@ Format pośredni JSON został zaimplementowany i jest używany jako standardowy 
       "source_file": "plik_źródłowy.pdf",
       "chunk_index": 3,
       "total_chunks": 12,
-      "model_used": "claude-3-opus-20240229",
+      "model_used": "claude-3-7-20250219",
       "processing_time": "1.23s",
       "confidence_score": 0.94,
       "keywords": ["hemodializa", "ultrafiltracja", "dyfuzja", "weterynaria"],
       "extracted_entities": ["hemodializa", "dializator", "osocze"]
-    },
-    "reasoning": "Analizując artykuł, widzę że opisuje hemodializę jako procedurę..."
+    }
   }
-]
+}
 ```
 
 ### 4. Nowa zakładka "Prepare Training Data"
