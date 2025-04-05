@@ -13,3 +13,4 @@ python-slugify>=8.0.0
 pyyaml>=6.0.0
 python-docx>=0.8.11
 pdfminer.six>=20221105
+nltk>=3.8

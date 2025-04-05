@@ -983,7 +983,7 @@ async def extract_keywords(file_info: Dict[str, str]):
                 status_code=400,
                 content={"detail": "Failed to parse file or file is empty"}
             )
-        
+        logger.info(records)
         # Extract text from the parsed records (concatenate first 3 chunks or fewer if less available)
         max_chunks = min(3, len(records))
         text_content = " ".join([record.get("input", "") for record in records[:max_chunks]])
