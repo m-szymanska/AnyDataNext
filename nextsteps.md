@@ -45,39 +45,71 @@
   - [x] Elastyczna konfiguracja maksymalnej liczby równoległych zadań
   - [x] Szacowanie kosztów i ograniczenia budżetowe
   - [x] Podgląd postępu z szacowanym czasem ukończenia
+  - [x] Śledzenie postępu w czasie rzeczywistym przez WebSockety
+  - [x] Szczegółowe raportowanie statusu dla każdego pliku
   - [ ] Możliwość wstrzymania/wznowienia procesu (częściowo zaimplementowane w trybie Paranoid)
   
 - **Obsługa języków**: [x]
   - [x] Wybór języka wejściowego (w tym auto-detekcja)
   - [x] Wybór języka wyjściowego
+  - [x] Domyślna konfiguracja dla języka polskiego
   - [x] Automatyczne tłumaczenie między językami
   - [x] Integracja z istniejącym skryptem translate.py
+  - [x] Zachowanie terminologii dziedzinowej podczas tłumaczenia
 
-### 3. Format pośredni JSON [x]
+### 3. Format pośredni JSON i nowe metody przetwarzania [x]
 
 Format pośredni JSON został zaimplementowany i jest używany jako standardowy format dla wszystkich etapów przetwarzania. Format ten został zaprojektowany tak, aby mógł być łatwo rozszerzany o nowe funkcjonalności w przyszłości.
 
+- **Standaryzacja formatu danych**: [x]
+  - [x] Spójny format JSON dla wszystkich etapów przetwarzania
+  - [x] Rozszerzone metadane dla każdego rekordu
+  - [x] Automatyczne uzupełnianie brakujących pól
+
+- **Inteligentne przetwarzanie tekstu**: [x]
+  - [x] Adaptacyjne dzielenie dokumentów na fragmenty
+  - [x] Specjalne traktowanie krótkich dokumentów jako całości
+  - [x] Zachowanie pełnego kontekstu i powiązań między informacjami
+  - [x] Grupowanie powiązanych treściowo informacji w spójne rekordy
+
+- **Ulepszone prompty systemowe**: [x]
+  - [x] Kontekstowe rozumienie całości dokumentu przed podziałem
+  - [x] Analiza złożoności dokumentu do określenia optymalnej liczby rekordów
+  - [x] Szczegółowe instrukcje zachowania integralności informacji
+  - [x] Dedykowane prompty dla języka polskiego i angielskiego
+
 ```json
 {
-  {
-    "instruction": "Pytanie/instrukcja",
-    "input": "Kontekst z dokumentu",
-    "output": "Odpowiedź/wynik",
-    "metadata": {
-      "source_file": "plik_źródłowy.pdf",
-      "chunk_index": 3,
-      "total_chunks": 12,
-      "model_used": "claude-3-7-20250219",
-      "processing_time": "1.23s",
-      "confidence_score": 0.94,
-      "keywords": ["hemodializa", "ultrafiltracja", "dyfuzja", "weterynaria"],
-      "extracted_entities": ["hemodializa", "dializator", "osocze"]
-    }
+  "instruction": "BARDZO SZCZEGÓŁOWY kontekst z dokumentu, zawierający dokładną terminologię i szczegóły",
+  "prompt": "Pytanie o pojęcia, definicje lub metody z dokumentu",
+  "completion": "Wyczerpująca odpowiedź uwzględniająca pełny kontekst",
+  "metadata": {
+    "source_file": "plik_źródłowy.pdf",
+    "chunk_index": 3,
+    "total_chunks": 12,
+    "model_used": "claude-3-7-20250219",
+    "processing_time": "1.23s",
+    "confidence_score": 0.94,
+    "keywords": ["hemodializa", "ultrafiltracja", "dyfuzja", "weterynaria"],
+    "extracted_entities": ["hemodializa", "dializator", "osocze"]
   }
 }
 ```
 
-### 4. Nowa zakładka "Prepare Training Data"
+### 4. Infrastruktura komunikacji w czasie rzeczywistym [x]
+
+- **System WebSocketów**: [x]
+  - [x] Klasa ConnectionManager do zarządzania połączeniami
+  - [x] Kanały komunikacji dla poszczególnych klientów
+  - [x] Funkcja broadcast do powiadamiania wszystkich klientów
+
+- **Śledzenie postępu przetwarzania**: [x]
+  - [x] Progress bar z procentowym wskaźnikiem ukończenia
+  - [x] Dynamiczna aktualizacja statusu przetwarzania poszczególnych plików
+  - [x] Komunikaty o ukończeniu lub błędach przetwarzania
+  - [x] Interaktywne odświeżanie interfejsu
+
+### 5. Nowa zakładka "Prepare Training Data" [ ]
 
 - **Źródło danych**:
   - Wybór wcześniej przetworzonych batchów
@@ -106,7 +138,7 @@ Format pośredni JSON został zaimplementowany i jest używany jako standardowy 
   - Wizualizacje rozkładów
   - Raport potencjalnych problemów
 
-### 5. Rozszerzenie o multimodalność (podejście hybrydowe)
+### 6. Rozszerzenie o multimodalność (podejście hybrydowe) [ ]
 
 - **W pierwszej fazie - integracja z AnyDataset**:
   - Podstawowe przetwarzanie obrazów i audio
@@ -151,7 +183,15 @@ Format pośredni JSON został zaimplementowany i jest używany jako standardowy 
    - [x] Dodanie mechanizmu awaryjnego generowania słów kluczowych
    - [x] Konfiguracja dostępu przez sieć ZeroTier dla pracy zespołowej
 
-4. **Faza 3** - Zakładka Prepare Training Data: [ ]
+4. **Faza 2.6** - Udoskonalenia promptów i przetwarzania: [x]
+   - [x] Nowe prompty systemowe z adaptacyjnym podziałem dokumentów
+   - [x] Specjalne traktowanie krótkich dokumentów jako niepodzielnych jednostek
+   - [x] Dodanie mechanizmu zachowania pełnego kontekstu w instrukcjach
+   - [x] Wprowadzenie dedykowanych promptów dla języka polskiego
+   - [x] Implementacja systemu powiadamiania przez WebSockety
+   - [x] Wizualizacja postępu przetwarzania w czasie rzeczywistym
+
+5. **Faza 3** - Zakładka Prepare Training Data: [ ]
    - [ ] Implementacja przygotowania danych treningowych z makiety do pełnej funkcjonalności
    - [ ] Dodanie transformacji i walidacji danych
    - [ ] Generowanie i optymalizacja JSON/JSONL zgodnie z formatem pośrednim
@@ -159,12 +199,20 @@ Format pośredni JSON został zaimplementowany i jest używany jako standardowy 
    - [ ] Filtrowanie przykładów o niskiej jakości
    - [ ] Deduplikacja i augmentacja danych
 
-5. **Faza 4** - Podstawowe wsparcie dla multimodalności: [ ]
+6. **Faza 4** - Podstawowe wsparcie dla multimodalności: [ ]
    - [ ] Rozszerzenie formatu JSON o obsługę audio
    - [ ] Podstawowe przetwarzanie plików audio
    - [ ] Zakładka "Multimedia" z obsługą plików audio
    - [ ] Automatyczna transkrypcja i przetwarzanie audio
    - [ ] Integracja z modelami AI do analizy audio
+
+## Priorytety na najbliższy sprint rozwojowy
+
+1. Rozwinięcie interfejsu śledzenia postępu o dodatkowe metryki wydajności
+2. Optymalizacja przetwarzania specjalistycznych tekstów dziedzinowych
+3. Rozbudowa funkcji dynamicznego wykrywania języka
+4. Dodanie funkcji eksportu bezpośrednio do popularnych formatów treningowych
+5. Testy wydajnościowe i optymalizacja dla bardzo dużych zbiorów danych
 
 ## Wizja długoterminowa
 
