@@ -13,7 +13,7 @@ import logging
 
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from utils import get_llm_client, auto_generate_keywords, parallel_process
+from utils import get_llm_client, auto_generate_keywords
 
 
 def convert_dictionary_entry(entry, keywords=None):
@@ -234,21 +234,31 @@ def process_dictionary(
         
         # Process train data
         print("Processing training data...")
-        train_data = parallel_process(
-            train_data, 
-            process_with_reasoning, 
-            max_workers=max_workers, 
-            desc="Adding reasoning to train"
-        )
+        # train_data = parallel_process(
+        #     train_data, 
+        #     process_with_reasoning, 
+        #     max_workers=max_workers, 
+        #     desc="Adding reasoning to train"
+        # )
+        # Simple sequential fallback
+        processed_train_data = []
+        for item in train_data:
+            processed_train_data.append(process_with_reasoning(item))
+        train_data = processed_train_data
         
         # Process validation data
         print("Processing validation data...")
-        valid_data = parallel_process(
-            valid_data, 
-            process_with_reasoning, 
-            max_workers=max_workers,
-            desc="Adding reasoning to valid"
-        )
+        # valid_data = parallel_process(
+        #     valid_data, 
+        #     process_with_reasoning, 
+        #     max_workers=max_workers,
+        #     desc="Adding reasoning to valid"
+        # )
+        # Simple sequential fallback
+        processed_valid_data = []
+        for item in valid_data:
+            processed_valid_data.append(process_with_reasoning(item))
+        valid_data = processed_valid_data
     
     if progress_callback:
         progress_callback(total_items, total_items)  # Mark completion

@@ -13,7 +13,7 @@ import logging
 
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from utils import get_llm_client, auto_generate_keywords, parallel_process
+from utils import get_llm_client, auto_generate_keywords
 
 
 def convert_to_ml_format(example, keywords=None):

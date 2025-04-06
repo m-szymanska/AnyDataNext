@@ -13,7 +13,7 @@ import logging
 
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from utils import get_llm_client, auto_generate_keywords, parallel_process
+from utils import get_llm_client, auto_generate_keywords
 
 
 def translate_and_convert(example, llm_client, keywords=None, input_language="en", output_language="pl"):
@@ -264,12 +264,17 @@ def process_dataset(
     def process_example(example):
         return translate_and_convert(example, translate_client, keywords, input_language, output_language)
     
-    translated_examples = parallel_process(
-        dataset, 
-        process_example, 
-        max_workers=max_workers, 
-        desc="Translating"
-    )
+    # TODO: Replace parallel_process with direct processing
+    # translated_examples = parallel_process(
+    #     dataset, 
+    #     process_example, 
+    #     max_workers=max_workers, 
+    #     desc="Translating"
+    # )
+    # Simple sequential fallback
+    translated_examples = []
+    for example in dataset:
+        translated_examples.append(process_example(example))
     
     if progress_callback:
         progress_callback(len(dataset) // 2, len(dataset))  # Mark halfway point
@@ -289,21 +294,31 @@ def process_dataset(
         
         # Process train data
         print("Processing training data...")
-        train_data = parallel_process(
-            train_data, 
-            process_with_reasoning, 
-            max_workers=max_workers, 
-            desc="Adding reasoning to train"
-        )
+        # train_data = parallel_process(
+        #     train_data, 
+        #     process_with_reasoning, 
+        #     max_workers=max_workers, 
+        #     desc="Adding reasoning to train"
+        # )
+        # Simple sequential fallback
+        processed_train_data = []
+        for item in train_data:
+            processed_train_data.append(process_with_reasoning(item))
+        train_data = processed_train_data
         
         # Process validation data
         print("Processing validation data...")
-        valid_data = parallel_process(
-            valid_data, 
-            process_with_reasoning, 
-            max_workers=max_workers,
-            desc="Adding reasoning to valid"
-        )
+        # valid_data = parallel_process(
+        #     valid_data, 
+        #     process_with_reasoning, 
+        #     max_workers=max_workers,
+        #     desc="Adding reasoning to valid"
+        # )
+        # Simple sequential fallback
+        processed_valid_data = []
+        for item in valid_data:
+            processed_valid_data.append(process_with_reasoning(item))
+        valid_data = processed_valid_data
     
     if progress_callback:
         progress_callback(len(dataset), len(dataset))  # Mark completion

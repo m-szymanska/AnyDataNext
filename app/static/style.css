@@ -1,0 +1,280 @@
+/* AnyDataset Converter Styles */
+
+:root {
+  --primary-color: #2196F3;
+  --secondary-color: #4CAF50;
+  --background-color: #f9f9f9;
+  --card-color: #ffffff;
+  --text-color: #333333;
+  --error-color: #f44336;
+  --success-color: #4CAF50;
+  --warning-color: #ff9800;
+}
+
+body { 
+  font-family: Arial, sans-serif; 
+  max-width: 1000px; 
+  margin: 0 auto; 
+  padding: 20px; 
+  background-color: var(--background-color);
+  color: var(--text-color);
+}
+
+h1, h2, h3 { 
+  color: var(--text-color); 
+}
+
+h1 {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.card {
+  background-color: var(--card-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  padding: 30px;
+  margin-bottom: 30px;
+}
+
+.intro {
+  margin-bottom: 30px;
+  line-height: 1.6;
+  max-width: 800px;
+  margin: 0 auto 40px auto;
+  text-align: center;
+}
+
+.form-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.file-upload-container {
+  border: 2px dashed #ccc;
+  padding: 20px;
+  text-align: center;
+  margin-bottom: 20px;
+  cursor: pointer;
+  border-radius: 5px;
+  transition: all 0.3s;
+}
+
+.file-upload-container:hover {
+  background-color: #f0f8ff;
+  border-color: var(--primary-color);
+}
+
+.file-list {
+  margin-top: 20px;
+}
+
+.file-item {
+  border: 1px solid #ddd;
+  padding: 10px;
+  margin-bottom: 10px;
+  border-radius: 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.file-item .remove-btn {
+  background-color: var(--error-color);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+.parameters-section {
+  margin-top: 20px;
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
+}
+
+.form-group select, 
+.form-group input, 
+.form-group textarea {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+.form-group textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+.testflight-section {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: #f0f8ff;
+  border-radius: 5px;
+  border: 1px solid #b8daff;
+}
+
+.example-item {
+  margin-bottom: 10px;
+  padding: 10px;
+  background-color: white;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+}
+
+.example-prompt {
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.example-completion {
+  color: #555;
+  font-style: italic;
+}
+
+.button {
+  display: inline-block;
+  padding: 12px 20px;
+  background: linear-gradient(to right, var(--primary-color), var(--secondary-color));
+  color: white;
+  text-decoration: none;
+  border: none;
+  border-radius: 5px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 8px rgba(0,0,0,0.15);
+}
+
+.button:disabled {
+  background: #cccccc;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.run-button {
+  background: linear-gradient(to right, var(--secondary-color), #8BC34A);
+  font-size: 16px;
+  padding: 15px 30px;
+  width: 100%;
+  margin-top: 20px;
+}
+
+.jobs {
+  margin-top: 40px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+th, td {
+  text-align: left;
+  padding: 12px 15px;
+  border-bottom: 1px solid #eee;
+}
+
+th {
+  background-color: #f2f2f2;
+  font-weight: bold;
+}
+
+.action-button {
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-right: 5px;
+}
+
+.action-button:hover {
+  background-color: #0b7dda;
+}
+
+.loading {
+  color: var(--warning-color);
+  font-style: italic;
+}
+
+.success {
+  color: var(--success-color);
+  font-weight: bold;
+}
+
+.error {
+  color: var(--error-color);
+  font-weight: bold;
+}
+
+/* Progress bar styles */
+.progress-container {
+  width: 100%;
+  background-color: #f1f1f1;
+  border-radius: 4px;
+  margin: 5px 0;
+}
+
+.progress-bar {
+  height: 15px;
+  background: linear-gradient(to right, var(--primary-color), var(--secondary-color));
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.status-text {
+  font-size: 0.9em;
+  margin-top: 3px;
+}
+
+.processing-status {
+  color: var(--warning-color);
+  font-style: italic;
+}
+
+.completed-status {
+  color: var(--success-color);
+}
+
+.error-status {
+  color: var(--error-color);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  body {
+    padding: 10px;
+  }
+  
+  .card {
+    padding: 15px;
+  }
+  
+  .button {
+    padding: 10px 15px;
+  }
+}
