@@ -28,7 +28,7 @@ class LLMClient:
     def __init__(self, api_key=None):
         self.api_key = api_key
     
-    def generate(self, messages, **kwargs):
+    async def generate(self, messages, **kwargs):
         """Generates a response based on messages."""
         raise NotImplementedError("Subclasses must implement generate()")
 
@@ -42,16 +42,19 @@ class AnthropicClient(LLMClient):
             raise ImportError("Anthropic package is required for AnthropicClient")
         self.client = anthropic.Anthropic(api_key=self.api_key)
     
-    def generate(self, messages, model="claude-3-sonnet-20240229", max_tokens=1000, temperature=0.7, system=None, **kwargs):
+    async def generate(self, messages, model=None, max_tokens=None, temperature=None, system=None, **kwargs):
         """Generates a response using Claude API."""
         try:
-            # Przygotuj parametry bez system jeśli jest None
-            params = {
-                "model": model,
-                "max_tokens": max_tokens, 
-                "temperature": temperature,
-                "messages": messages
-            }
+            # Przygotuj parametry bez wartości None
+            params = {"messages": messages}
+            
+            # Dodaj parametry tylko jeśli nie są None
+            if model is not None:
+                params["model"] = model
+            if max_tokens is not None:
+                params["max_tokens"] = max_tokens
+            if temperature is not None:
+                params["temperature"] = temperature
             
             # Dodaj system tylko jeśli nie jest None
             if system is not None:
@@ -61,7 +64,8 @@ class AnthropicClient(LLMClient):
             for key, value in kwargs.items():
                 if value is not None:
                     params[key] = value
-                    
+            
+            # Wykonaj synchroniczne zapytanie do API, ale zwróć jako awaitable        
             response = self.client.messages.create(**params)
             return response.content[0].text
         except Exception as e:
@@ -78,16 +82,25 @@ class OpenAIClient(LLMClient):
             raise ImportError("OpenAI package is required for OpenAIClient")
         self.client = OpenAI(api_key=self.api_key, base_url=base_url)
     
-    def generate(self, messages, model="gpt-4o", max_tokens=1000, temperature=0.7, **kwargs):
+    async def generate(self, messages, model=None, max_tokens=None, temperature=None, **kwargs):
         """Generates a response using OpenAI API."""
         try:
-            response = self.client.chat.completions.create(
-                model=model,
-                messages=messages,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                **kwargs
-            )
+            params = {"messages": messages}
+            
+            # Dodaj parametry tylko jeśli nie są None
+            if model is not None:
+                params["model"] = model
+            if max_tokens is not None:
+                params["max_tokens"] = max_tokens
+            if temperature is not None:
+                params["temperature"] = temperature
+                
+            # Dodaj pozostałe parametry z kwargs
+            for key, value in kwargs.items():
+                if value is not None:
+                    params[key] = value
+                    
+            response = self.client.chat.completions.create(**params)
             return response.choices[0].message.content
         except Exception as e:
             logger.error(f"Error with OpenAI API: {e}")
@@ -117,7 +130,7 @@ class GoogleClient(LLMClient):
         super().__init__(api_key or os.getenv("GOOGLE_API_KEY"))
         # Placeholder for future Google API implementation
     
-    def generate(self, messages, model="gemini-1.5-pro", max_tokens=1000, temperature=0.7, **kwargs):
+    async def generate(self, messages, model=None, max_tokens=None, temperature=None, **kwargs):
         """Generates a response using Google API."""
         try:
             # Placeholder for future Google API implementation

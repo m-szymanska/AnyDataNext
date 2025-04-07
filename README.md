@@ -1,193 +1,191 @@
-# AnyDataset
+# AnyDataNext 🚀
 
-AnyDataset is a powerful, web-based application for transforming, processing, and enriching various data formats to create high-quality training datasets for language models. It provides an intuitive interface for handling multiple file types, multi-model processing, and advanced batch operations with real-time progress tracking.
+AnyDataNext is a platform designed for flexible processing and preparation of various data types (text, audio, video) for AI model training. It features a web interface for managing uploads, configuring processing pipelines, and generating structured datasets. This project evolved from the original AnyDataset with enhanced features, improved architecture, and better support for different data modalities.
 
-## Key Features
+## ✨ Key Features
 
-- **Multiple Processing Interfaces**:
-  - **Standard Interface**: Simple upload and conversion
-  - **Process File Interface**: 3-step guided workflow with keyword editing
-  - **Batch Processing Interface**: Parallel multi-file processing with advanced options
+*   **Text Processing Pipeline (Existing/Mature):**
+    *   Handles various document formats (PDF, DOCX, TXT, etc.).
+    *   Intelligent chunking and context-aware processing.
+    *   Integration with LLMs for summarization, keyword extraction, Q&A generation.
+    *   Configurable processing options.
+    *   Batch processing capabilities.
+*   **Audio/Video Processing Pipeline (In Progress):**
+    *   Accepts various audio/video input formats via web UI.
+    *   Uses `ffmpeg` for audio extraction and standardization (target: 16kHz mono WAV).
+    *   Aims to use `mlx-whisper` (on Apple Silicon with MLX) for transcription with word-level timestamps (planned: `large-v3` model).
+    *   Future: Semantic segmentation, precise audio chunk cutting.
+    *   Future: Generates a dataset package (ZIP) with audio chunks and metadata.
+*   **Web Interface (Next.js / React / TypeScript):**
+    *   File upload (drag & drop).
+    *   Configuration of processing parameters (UI implemented).
+    *   Real-time progress tracking via WebSockets (partially implemented).
+    *   Viewing and downloading processed datasets (basic functionality).
+*   **Backend (FastAPI / Python):**
+    *   Asynchronous processing using background tasks.
+    *   WebSocket support for real-time communication.
+    *   Modular processing utilities (structure in place).
 
-- **Multi-Model Processing**:
-  - Dynamic detection of available models based on API keys
-  - Parallel processing using multiple LLM providers simultaneously
-  - File allocation strategies: round-robin, file-size-based, and file-type-based
-  - Cost estimation and resource optimization
+## 🛠️ Technology Stack
 
-- **File Format Support**:
-  - Text files (TXT, MD)
-  - Structured data (CSV, JSON, YAML, SQL)
-  - Documents (PDF, DOCX)
-  - Audio files (WAV)
-  - And more...
+*   **Backend:** Python 3.11+, FastAPI, Uvicorn, MLX (planned), `mlx-whisper` (planned), `ffmpeg` (external dependency)
+*   **Frontend:** Next.js, React, TypeScript, Tailwind CSS, shadcn/ui
+*   **Communication:** WebSockets
+*   **Package Management:** `uv` (preferred for Python backend), `pip` (fallback), `npm` (for frontend)
+*   **Python Version Management:** `pyenv` (recommended)
 
-- **Advanced Processing Features**:
-  - Automated keyword extraction and editing
-  - Content reasoning traces with toggle option
-  - Anonymization of sensitive/PII data
-  - Custom chunking with size and overlap controls
-  - System prompts for contextual instructions
+## 📋 Prerequisites
 
-- **Multilingual Support**:
-  - Process content in multiple languages
-  - Translation between language pairs
-  - Auto-language detection option
-  - Maintains domain-specific terminology
+Before you begin, ensure you have the following installed:
 
-- **Processing Strategies**:
-  - "YoLo" (fully automated processing)
-  - "Paranoid" (with verification checkpoints)
-  - Fine-grained control over model parameters (temperature, max_tokens)
+1.  **Python 3.11.x:** We strongly recommend managing Python versions using `pyenv`.
+    ```bash
+    # Example using pyenv
+    pyenv install 3.11.9 
+    pyenv global 3.11.9 # Or set locally in the backend directory
+    ```
+2.  **Node.js:** A recent LTS version (e.g., 18.x or 20.x). Download from [nodejs.org](https://nodejs.org/) or use a version manager like `nvm`.
+3.  **npm:** Usually comes with Node.js.
+4.  **ffmpeg:** Required for audio/video processing.
+    ```bash
+    # On macOS (using Homebrew)
+    brew install ffmpeg
+    # On Debian/Ubuntu
+    sudo apt update && sudo apt install ffmpeg
+    # On Fedora
+    sudo dnf install ffmpeg
+    ```
+5.  **uv (Recommended):** The fast Python package installer/resolver.
+    ```bash
+    # Example installation using pip (if you have it)
+    pip install uv 
+    # Or follow instructions at https://github.com/astral-sh/uv
+    # The backend startup script will attempt to use uv if available.
+    ```
 
-- **Real-Time Feedback**:
-  - WebSocket-based progress tracking
-  - Detailed job status reporting
-  - Cost and time estimation for batch jobs
+## 🚀 Setup and Installation
 
-## Supported LLM Providers
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/Szowesgad/AnyDataNext.git
+    cd AnyDataNext
+    ```
 
-- Claude/Anthropic
-- OpenAI
-- DeepSeek
-- Qwen
-- Mistral AI
-- Google AI (planned)
-- LM Studio (for local models)
-- xAI, OpenRouter, Grok (experimental)
+2.  **Backend Environment Setup (if not using start scripts initially):**
+    ```bash
+    cd backend
+    # Ensure correct Python version (e.g., using pyenv local 3.11.9)
+    # Create virtual environment (uv is faster if installed)
+    # python -m venv .venv 
+    # OR
+    uv venv .venv
+    # Activate
+    source .venv/bin/activate
+    # Install dependencies (uv preferred)
+    # uv pip install -r requirements.txt 
+    # OR
+    # pip install -r requirements.txt
+    # Deactivate (optional)
+    # deactivate
+    cd ..
+    ```
 
-## Installation
+3.  **Frontend Environment Setup (if not using start scripts initially):**
+    ```bash
+    cd frontend
+    # Install dependencies
+    npm install
+    # Create environment file for local development
+    # Ensure you have a .env.local file. You might copy from .env.local.example
+    # Example: cp .env.local.example .env.local
+    # !! IMPORTANT !!: Verify the NEXT_PUBLIC_BACKEND_URL in .env.local 
+    # It should point to your running backend (default: http://localhost:8000)
+    # Example .env.local contents:
+    # NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
+    cd ..
+    ```
 
-1. Clone the repository:
-```bash
-git clone https://github.com/yourusername/AnyDataset.git
-cd AnyDataset
+## ▶️ Running the Application (Development)
+
+We now use dedicated scripts for starting the backend and frontend.
+
+1.  **Make Scripts Executable (only needed once):**
+    ```bash
+    chmod +x backend-start.sh frontend-start.sh
+    ```
+
+2.  **Start the Backend Server:**
+    *   Open a terminal in the project root directory.
+    *   Run: `./backend-start.sh`
+    *   This script handles activating the virtual environment, installing dependencies (using `uv` if available), and starting the Uvicorn server.
+    *   **Keep this terminal open.** It will show backend logs.
+
+3.  **Start the Frontend Server:**
+    *   Open a **new** terminal window/tab in the project root directory.
+    *   Run: `./frontend-start.sh`
+    *   This script first checks if the backend is responding, then installs frontend dependencies (if needed), and starts the Next.js development server.
+    *   **Keep this terminal open.** It will show frontend logs.
+
+4.  **Access the Application:** Open your web browser and navigate to `http://localhost:3000` (or the port specified by the frontend script).
+
+## 📂 Project Structure
+
+```
+AnyDataNext/
+├── backend/            # FastAPI application (Python)
+│   ├── app/            # Core application logic, endpoints, utils
+│   │   ├── scripts/    # Processing scripts for different formats
+│   │   ├── utils/      # Utility modules and helper functions
+│   │   └── ...         # Templates, static files, etc.
+│   ├── .venv/          # Virtual environment (created by script/user)
+│   ├── data/           # Example data files for testing
+│   ├── requirements.txt # Python dependencies
+│   └── ...
+├── frontend/           # Next.js application (TypeScript)
+│   ├── src/            # Source code (pages, components)
+│   │   ├── app/        # Next.js app router
+│   │   ├── components/ # React components
+│   │   └── ...         # Types, lib utilities, etc.
+│   ├── public/         # Static assets
+│   ├── node_modules/   # Node.js dependencies (created by script/user)
+│   ├── .env.local      # Local environment variables (created by user)
+│   ├── package.json    # Frontend dependencies and scripts
+│   └── ...
+├── docs/               # Documentation files
+│   ├── audit-20250404.md # Project audit document
+│   ├── refactor-20250404.md # Refactoring report
+│   └── ...
+├── .github/            # GitHub specific files (e.g., workflows - if added)
+├── backend-start.sh    # Script to start the backend server
+├── frontend-start.sh   # Script to start the frontend server
+├── devstage.md         # Summary of the current development stage
+├── nextsteps.md        # Original planning document
+├── .gitignore          # Git ignore rules
+└── README.md           # This file
 ```
 
-2. Create a virtual environment and install dependencies:
+## 📍 Development Status
 
-**Option A: Using standard pip**
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
-```
+For a detailed summary of the current development stage, recent progress, and immediate next steps, please refer to the `devstage.md` file.
 
-**Option B: Using uv (recommended for faster installation)**
-```bash
-# Install uv if not already installed
-pip install uv
+## 🗺️ Roadmap
 
-# Create virtual environment and install dependencies
-uv venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-uv pip install -r requirements.txt
-```
+See `roadmapnext.md` for longer-term plans (consider merging key points into this README or `devstage.md`).
 
-If you encounter any dependency errors when running the application, the startup script will automatically detect missing dependencies and guide you on how to install them.
+## 🤝 Contributing
 
-3. Configure environment variables:
-```bash
-# Copy the example environment file
-cp .env-example .env
+Guidelines for contributing to this project:
 
-# Edit the .env file with your API keys
-nano .env  # or use any text editor
-```
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/your-feature-name`)
+3. Commit your changes (`git commit -m 'feat(component): add new feature' (c) M&K`)
+4. Push to the branch (`git push origin feature/your-feature-name`)
+5. Open a Pull Request
 
-## Usage
+## 📄 License
 
-Run the application using the startup script:
-```bash
-# Using Python
-python run.py
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-# Or directly (if script is executable)
-./run.py
-```
+---
 
-The startup script handles initialization and automatically selects the best available method to run the application (uv, uvicorn, or Python).
-
-Then access the web interface at http://localhost:8000
-
-### Interface Options
-
-- **Main Interface** (/) - Basic dataset conversion
-- **Process File** (/process) - 3-step guided processing workflow
-- **Batch Processing** (/batch) - Advanced batch operations with multi-model support
-
-## Intermediate JSON Format
-
-AnyDataset uses a standardized intermediate JSON format for processing:
-
-```json
-{
-  "instruction": "Question/instruction",
-  "input": "Document context",
-  "output": "Response/result",
-  "metadata": {
-    "source_file": "source_file.pdf",
-    "keywords": ["keyword1", "keyword2"],
-    "chunk_index": 3,
-    "total_chunks": 12,
-    "model_used": "claude-3-opus-20240229",
-    "processing_time": "1.23s"
-  },
-  "reasoning": "Analysis and reasoning trace..."
-}
-```
-
-## API Usage
-
-AnyDataset provides a REST API for automation:
-
-```bash
-# Convert a single file
-curl -X POST -F "file=@your_file.json" \
-             -F "conversion_type=standard" \
-             -F "model_provider=anthropic" \
-             -F "model_name=claude-3-opus-20240229" \
-             http://localhost:8000/convert/
-
-# Batch process multiple files
-curl -X POST -F "file_paths=[\"path1.txt\", \"path2.pdf\"]" \
-             -F "conversion_type=standard" \
-             -F "model_provider=anthropic" \
-             -F "additional_options_json={\"multi_model\":true,\"batch_strategy\":\"yolo\"}" \
-             http://localhost:8000/batch-convert/
-```
-
-## Project Structure
-
-- `/app` - Main application code
-  - `/app.py` - FastAPI application and main endpoints
-  - `/scripts` - Conversion scripts for different formats
-  - `/utils` - Utility functions and helpers
-  - `/templates` - HTML interface templates
-  - `/uploads` - Temporary storage for uploaded files
-  - `/ready` - Output directory for processed datasets
-- `/data` - Sample data files for testing
-- `/docs` - Documentation and requirements
-
-## Future Development
-
-The project roadmap includes:
-
-1. **Prepare Training Data** interface for:
-   - Filtering examples by quality
-   - Deduplication and augmentation
-   - Train/valid/test splitting
-   - Dataset metrics and visualization
-
-2. **Multi-modal support** for:
-   - Image processing with vision-language models
-   - Audio transcription and analysis
-   - Combined text + image + audio processing
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
+🤖 Developed with the ultimate help of [Claude Code](https://claude.ai/code) and [MCP Tools](https://modelcontextprotocol.io)

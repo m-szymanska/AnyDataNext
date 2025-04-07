@@ -80,7 +80,7 @@ Format pośredni JSON został zaimplementowany i jest używany jako standardowy 
 
 ```json
 {
-  "instruction": "BARDZO SZCZEGÓŁOWY kontekst z dokumentu, zawierający dokładną terminologię i szczegóły",
+  "instruction": "PODSUMOWANY konkretny fragment/kontekst z dokumentu, zawierający dokładną terminologię, na podstawie której zbudowano pole 'prompt'",
   "prompt": "Pytanie o pojęcia, definicje lub metody z dokumentu",
   "completion": "Wyczerpująca odpowiedź uwzględniająca pełny kontekst",
   "metadata": {
@@ -90,8 +90,8 @@ Format pośredni JSON został zaimplementowany i jest używany jako standardowy 
     "model_used": "claude-3-7-20250219",
     "processing_time": "1.23s",
     "confidence_score": 0.94,
-    "keywords": ["hemodializa", "ultrafiltracja", "dyfuzja", "weterynaria"],
-    "extracted_entities": ["hemodializa", "dializator", "osocze"]
+    "keywords": ["hemodializa", "ultrafiltracja", "dyfuzja", "weterynaria"], # przykład
+    "extracted_entities": ["hemodializa", "dializator", "osocze"] # przykład
   }
 }
 ```
@@ -154,6 +154,18 @@ Format pośredni JSON został zaimplementowany i jest używany jako standardowy 
   - Automatyczna transkrypcja
   - Ekstrakcja parametrów dźwięku
   - Normalizacja i poprawa jakości
+  - **[NOWY PLAN] Szczegółowy Pipeline Przygotowania Datasetu Audio-Tekst:**
+    - **Cel:** Wysokiej jakości, zsynchronizowane datasety dla modeli głosowych.
+    - **Input:** Plik audio/video.
+    - **Endpoint:** Planowany `POST /api/process-audio-dataset`.
+    - **Logika (planowany `utils/multimedia_processor.py`):**
+      1. **Ekstrakcja Audio:** `ffmpeg`.
+      2. **Transkrypcja + Word-Timestamps:** `Whisper V3 Large MLX/Lightning`.
+      3. **Segmentacja Semantyczna:** Analiza tekstu/pauz.
+      4. **Cięcie Audio Chunks:** `ffmpeg` na podstawie precyzyjnych timestampów.
+      5. **Generowanie Metadanych JSON:** `text`, `start_time`, `end_time`, `audio_chunk_path`, `source_file`, etc.
+      6. **Pakowanie Wyników:** ZIP z plikami `.wav` i `.json`.
+      7. **Pobieranie:** Przez `/api/results/{job_id}`.
 
 - **Architektura modułowa**:
   - Możliwość wydzielenia specjalistycznych narzędzi w przyszłości
@@ -203,8 +215,9 @@ Format pośredni JSON został zaimplementowany i jest używany jako standardowy 
    - [ ] Rozszerzenie formatu JSON o obsługę audio
    - [ ] Podstawowe przetwarzanie plików audio
    - [ ] Zakładka "Multimedia" z obsługą plików audio
-   - [ ] Automatyczna transkrypcja i przetwarzanie audio
-   - [ ] Integracja z modelami AI do analizy audio
+   - [ ] Automatyczna transkrypcja i przetwarzanie audio (Placeholder)
+   - [ ] Integracja z modelami AI do analizy audio (Placeholder)
+   - **[TODO] Implementacja Szczegółowego Pipeline Przygotowania Datasetu Audio-Tekst** (zgodnie z planem w sekcji 6)
 
 ## Priorytety na najbliższy sprint rozwojowy
 
