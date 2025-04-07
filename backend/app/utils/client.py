@@ -82,10 +82,16 @@ class OpenAIClient(LLMClient):
             raise ImportError("OpenAI package is required for OpenAIClient")
         self.client = OpenAI(api_key=self.api_key, base_url=base_url)
     
-    async def generate(self, messages, model=None, max_tokens=None, temperature=None, **kwargs):
+    async def generate(self, messages, model=None, max_tokens=None, temperature=None, system=None, **kwargs):
         """Generates a response using OpenAI API."""
         try:
-            params = {"messages": messages}
+            # Obsługa parametru system - dodanie jako wiadomości z role="system"
+            messages_copy = messages.copy()
+            if system is not None:
+                # Dodaj system message na początku listy wiadomości
+                messages_copy.insert(0, {"role": "system", "content": system})
+            
+            params = {"messages": messages_copy}
             
             # Dodaj parametry tylko jeśli nie są None
             if model is not None:
@@ -95,9 +101,9 @@ class OpenAIClient(LLMClient):
             if temperature is not None:
                 params["temperature"] = temperature
                 
-            # Dodaj pozostałe parametry z kwargs
+            # Dodaj pozostałe parametry z kwargs, pomijając 'system' który już obsłużyliśmy
             for key, value in kwargs.items():
-                if value is not None:
+                if value is not None and key != 'system':
                     params[key] = value
                     
             response = self.client.chat.completions.create(**params)
