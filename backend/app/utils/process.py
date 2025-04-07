@@ -195,13 +195,48 @@ async def process_file(
         ]
 
         # Call the LLM
-        response = await client.generate(
-            messages=messages,
-            model=model,
-            temperature=temperature,
-            max_tokens=max_tokens or 4000, # Use provided max_tokens or default
-            system=final_system_prompt
-        )
+        try:
+            response = await client.generate(
+                messages=messages,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens or 4000, # Use provided max_tokens or default
+                system=final_system_prompt
+            )
+            
+            # Jeśli nie ma odpowiedzi (None), obsłuż błąd
+            if response is None:
+                logger.error(f"LLM returned None response for {file_path}")
+                return [{
+                    "instruction": f"Analiza dokumentu {basename}",
+                    "prompt": "Nie udało się przetworzyć dokumentu.",
+                    "completion": "API nie zwróciło odpowiedzi. Sprawdź logi błędów.",
+                    "metadata": {
+                        "source_file": basename,
+                        "model_used": model,
+                        "processing_time": f"{time.time() - start_time:.2f}s",
+                        "confidence_score": 0.1,
+                        "error": "API returned None response",
+                        "keywords": [],
+                        "extracted_entities": []
+                    }
+                }]
+        except Exception as e:
+            logger.error(f"Error calling LLM API: {e}")
+            return [{
+                "instruction": f"Analiza dokumentu {basename}",
+                "prompt": "Wystąpił błąd podczas przetwarzania.",
+                "completion": f"Błąd API: {str(e)}",
+                "metadata": {
+                    "source_file": basename,
+                    "model_used": model,
+                    "processing_time": f"{time.time() - start_time:.2f}s",
+                    "confidence_score": 0.1,
+                    "error": f"API Exception: {str(e)}",
+                    "keywords": [],
+                    "extracted_entities": []
+                }
+            }]
 
         # Parse the response
         try:
